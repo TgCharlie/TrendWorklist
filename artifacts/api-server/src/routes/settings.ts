@@ -31,6 +31,20 @@ router.get("/", requireAdmin, async (req, res): Promise<void> => {
   res.json(sanitizeSettings(settings));
 });
 
+router.get("/next-worklist-number", requireAdmin, async (req, res): Promise<void> => {
+  const seqRows = await db.select().from(worklistSequenceTable).limit(1);
+  const settings = await getAllSettings();
+  const lastNumber = seqRows.length > 0 ? seqRows[0].lastNumber : 0;
+  const startNumber = parseInt(settings.worklist_start_number || "1", 10) || 1;
+  const nextNumber = lastNumber > 0 ? lastNumber + 1 : startNumber;
+  const [{ count: worklistCount }] = await db.select({ count: count() }).from(worklistsTable);
+  res.json({
+    nextNumber,
+    formatted: `W${String(nextNumber).padStart(6, "0")}`,
+    worklistsExist: Number(worklistCount) > 0,
+  });
+});
+
 router.put("/", requireAdmin, async (req, res): Promise<void> => {
   const body = req.body as Record<string, string | number | boolean>;
   const forceOverride = body.force_override === true;

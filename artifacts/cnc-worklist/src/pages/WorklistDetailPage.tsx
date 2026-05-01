@@ -163,6 +163,12 @@ export default function WorklistDetailPage() {
 
   const STATUS_OPTIONS = ["draft", "submitted", "completed"];
 
+  const createdDate = new Date(worklist.createdAt).toLocaleDateString("en-AU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-start gap-4 mb-6">
@@ -171,17 +177,45 @@ export default function WorklistDetailPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </Link>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-zinc-950 font-mono">{worklist.worklistNumber}</h1>
-            <span className="font-mono text-blue-600 text-lg">{folderRef}</span>
+            <span className="font-mono text-blue-600 text-lg font-semibold">{folderRef}</span>
             <Badge variant="outline" className="border-zinc-300 text-zinc-700">
               Rover {worklist.machineType}
             </Badge>
           </div>
-          {worklist.projectAddress && (
-            <p className="text-zinc-500 text-sm mt-1">{worklist.projectAddress}</p>
-          )}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-sm text-zinc-500">
+            {worklist.projectId && (
+              <span className="flex items-center gap-1">
+                <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                </svg>
+                Project <span className="text-zinc-700 font-medium">{worklist.projectId}</span>
+              </span>
+            )}
+            {worklist.projectAddress && (
+              <span className="flex items-center gap-1 truncate">
+                <svg className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="truncate">{worklist.projectAddress}</span>
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {createdDate}
+            </span>
+            <span className="flex items-center gap-1">
+              <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              {worklist.items.length} {worklist.items.length === 1 ? "item" : "items"}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <Select

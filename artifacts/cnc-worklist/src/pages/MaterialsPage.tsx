@@ -15,6 +15,39 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
+interface StockInfo {
+  pcode: string;
+  qtyOnHand: number | null;
+  unit: string | null;
+}
+
+function StockBadge({ materialId }: { materialId: number }) {
+  const { data, isLoading, isError } = useQuery<StockInfo>({
+    queryKey: ["stock", materialId],
+    queryFn: () => apiFetch(`/materials/${materialId}/stock`),
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  if (isLoading) {
+    return <span className="text-zinc-300 text-xs animate-pulse">…</span>;
+  }
+  if (isError || data?.qtyOnHand == null) {
+    return <span className="text-zinc-300 text-xs">—</span>;
+  }
+  const color =
+    data.qtyOnHand <= 0
+      ? "text-red-600 bg-red-50 border-red-200"
+      : data.qtyOnHand < 5
+        ? "text-amber-700 bg-amber-50 border-amber-200"
+        : "text-green-700 bg-green-50 border-green-200";
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium border ${color}`}>
+      {data.qtyOnHand} {data.unit ?? ""}
+    </span>
+  );
+}
+
 interface Material {
   id: number;
   pcode: string;
@@ -157,6 +190,7 @@ export default function MaterialsPage() {
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">L (mm)</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">W (mm)</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">T (mm)</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">Stock</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Notes</th>
                 <th className="px-4 py-2.5 w-24"></th>
               </tr>
@@ -173,6 +207,9 @@ export default function MaterialsPage() {
                   <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.length ?? "—"}</td>
                   <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.width ?? "—"}</td>
                   <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.thickness ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <StockBadge materialId={m.id} />
+                  </td>
                   <td className="px-4 py-2.5 text-zinc-500 text-xs">{m.notes}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1.5 justify-end">

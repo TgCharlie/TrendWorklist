@@ -43,12 +43,13 @@ On first boot, a default admin user is seeded:
 
 - `users` — workshop accounts (username, pin_hash, role, active)
 - `materials` — internal materials (pcode, display_name, notes)
-- `worklists` — worklists (worklist_number W######, machine_type, folder_number, status)
+- `worklists` — worklists (worklist_number W######, machine_type, folder_number, project_number, status draft|active|complete)
 - `worklist_items` — line items (pcode, quantity, length, width)
 - `folder_sequences` — B/C machine folder counters
 - `worklist_sequence` — global worklist number counter
 - `app_settings` — key/value settings (filemaker config, csv_server_path, etc.)
 - `sessions` — express-session storage (connect-pg-simple)
+- `stockbook` — local mirror of FileMaker StockBook layout (pcode, description, qty_on_hand, unit, location, last_synced_at)
 
 ## Key Commands
 

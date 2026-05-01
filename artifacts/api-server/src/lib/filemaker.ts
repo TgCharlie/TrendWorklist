@@ -209,6 +209,44 @@ export async function getStockLevel(pcode: string): Promise<Record<string, unkno
   });
 }
 
+export interface FMStockbookRecord {
+  pcode: string;
+  description: string;
+  qtyOnHand: number;
+  unit: string | null;
+  location: string | null;
+}
+
+// Fetch all records from the FileMaker StockBook layout in batches
+export async function getAllStockbook(): Promise<FMStockbookRecord[]> {
+  return withToken(async (config, token) => {
+    const layout = "StockBook";
+    const batchSize = 1000;
+    const results: FMStockbookRecord[] = [];
+    let offset = 1;
+
+    while (true) {
+      const records = await findRecords(config, token, layout, undefined, batchSize, offset);
+      if (!records.length) break;
+      for (const r of records) {
+        const pcode = (r.fieldData["PCODE"] as string | undefined)?.trim();
+        if (!pcode) continue;
+        results.push({
+          pcode,
+          description: ((r.fieldData["Description"] as string | undefined) ?? "").trim(),
+          qtyOnHand: Number(r.fieldData["QtyOnHand"] ?? 0),
+          unit: (r.fieldData["Unit"] as string | undefined) ?? null,
+          location: (r.fieldData["Location"] as string | undefined) ?? null,
+        });
+      }
+      if (records.length < batchSize) break;
+      offset += batchSize;
+    }
+
+    return results;
+  });
+}
+
 let projectsCache: { data: Array<Record<string, unknown>>; ts: number } | null = null;
 
 export async function findProjectsCached(search?: string): Promise<Array<Record<string, unknown>>> {

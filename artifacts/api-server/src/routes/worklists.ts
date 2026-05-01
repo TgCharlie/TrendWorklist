@@ -6,18 +6,39 @@ import {
   worklistSequenceTable,
   folderSequencesTable,
 } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, count } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
 import { getSetting } from "../lib/settings";
 
 const router = Router();
+
+function folderRef(machineType: string, folderNumber: number): string {
+  return `${machineType}${String(folderNumber).padStart(4, "0")}`;
+}
 
 router.get("/", requireAuth, async (req, res): Promise<void> => {
   const worklists = await db
     .select()
     .from(worklistsTable)
     .orderBy(desc(worklistsTable.createdAt));
-  res.json(worklists);
+
+  const itemCounts = await db
+    .select({
+      worklistId: worklistItemsTable.worklistId,
+      count: count(),
+    })
+    .from(worklistItemsTable)
+    .groupBy(worklistItemsTable.worklistId);
+
+  const countMap = new Map(itemCounts.map((r) => [r.worklistId, Number(r.count)]));
+
+  const result = worklists.map((w) => ({
+    ...w,
+    folderRef: folderRef(w.machineType, w.folderNumber),
+    itemCount: countMap.get(w.id) ?? 0,
+  }));
+
+  res.json(result);
 });
 
 router.get("/stats", requireAuth, async (req, res): Promise<void> => {
@@ -59,12 +80,19 @@ router.get("/:id", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(worklistItemsTable)
     .where(eq(worklistItemsTable.worklistId, id));
-  res.json({ ...worklist, items });
+
+  res.json({
+    ...worklist,
+    folderRef: folderRef(worklist.machineType, worklist.folderNumber),
+    itemCount: items.length,
+    items,
+  });
 });
 
 router.post("/", requireAuth, async (req, res): Promise<void> => {
-  const { projectId, projectAddress, cutlistRefs, machineType } = req.body as {
+  const { projectId, projectNumber, projectAddress, cutlistRefs, machineType } = req.body as {
     projectId?: string;
+    projectNumber?: string;
     projectAddress?: string;
     cutlistRefs?: string[];
     machineType?: "B" | "C";
@@ -78,7 +106,6 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
   const createdBy = req.session.userId ?? null;
 
   const [worklist] = await db.transaction(async (tx) => {
-    // Atomically increment worklist sequence (single UPDATE statement — no read needed)
     const [seqRow] = await tx
       .update(worklistSequenceTable)
       .set({ lastNumber: sql`${worklistSequenceTable.lastNumber} + 1` })
@@ -89,7 +116,6 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     }
     const worklistNumber = `W${String(seqRow.lastNumber).padStart(6, "0")}`;
 
-    // Atomically increment folder sequence (single UPDATE statement)
     const [folderRow] = await tx
       .update(folderSequencesTable)
       .set({ lastNumber: sql`${folderSequencesTable.lastNumber} + 1` })
@@ -101,12 +127,12 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     }
     const folderNumber = folderRow.lastNumber;
 
-    // Insert worklist
     return tx
       .insert(worklistsTable)
       .values({
         worklistNumber,
         projectId: projectId || null,
+        projectNumber: projectNumber || null,
         projectAddress: projectAddress || null,
         cutlistRefs: cutlistRefs ?? [],
         machineType,
@@ -117,20 +143,26 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
       .returning();
   });
 
-  res.status(201).json(worklist);
+  res.status(201).json({
+    ...worklist,
+    folderRef: folderRef(worklist.machineType, worklist.folderNumber),
+    itemCount: 0,
+  });
 });
 
 router.put("/:id", requireAuth, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
-  const { projectId, projectAddress, cutlistRefs, status } = req.body as {
+  const { projectId, projectNumber, projectAddress, cutlistRefs, status } = req.body as {
     projectId?: string;
+    projectNumber?: string;
     projectAddress?: string;
     cutlistRefs?: string[];
-    status?: "draft" | "submitted" | "completed";
+    status?: "draft" | "active" | "complete";
   };
 
   const updates: Partial<typeof worklistsTable.$inferInsert> = {};
   if (projectId !== undefined) updates.projectId = projectId;
+  if (projectNumber !== undefined) updates.projectNumber = projectNumber;
   if (projectAddress !== undefined) updates.projectAddress = projectAddress;
   if (cutlistRefs !== undefined) updates.cutlistRefs = cutlistRefs;
   if (status !== undefined) updates.status = status;
@@ -144,7 +176,17 @@ router.put("/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Worklist not found" });
     return;
   }
-  res.json(worklist);
+
+  const items = await db
+    .select()
+    .from(worklistItemsTable)
+    .where(eq(worklistItemsTable.worklistId, id));
+
+  res.json({
+    ...worklist,
+    folderRef: folderRef(worklist.machineType, worklist.folderNumber),
+    itemCount: items.length,
+  });
 });
 
 router.delete("/:id", requireAuth, async (req, res): Promise<void> => {
@@ -260,13 +302,14 @@ router.get("/:id/csv", requireAuth, async (req, res): Promise<void> => {
     .from(worklistItemsTable)
     .where(eq(worklistItemsTable.worklistId, id));
 
-  const folderRef = `${worklist.machineType}${String(worklist.folderNumber).padStart(4, "0")}`;
+  const ref = folderRef(worklist.machineType, worklist.folderNumber);
 
   const csvLines: string[] = [
     `Worklist Number,${worklist.worklistNumber}`,
-    `Folder Reference,${folderRef}`,
+    `Folder Reference,${ref}`,
     `Machine Type,${worklist.machineType}`,
     `Project ID,${worklist.projectId ?? ""}`,
+    `Project Number,${worklist.projectNumber ?? ""}`,
     `Project Address,${worklist.projectAddress ?? ""}`,
     `Status,${worklist.status}`,
     `Created At,${worklist.createdAt.toISOString()}`,
@@ -288,7 +331,7 @@ router.get("/:id/csv", requireAuth, async (req, res): Promise<void> => {
   ];
 
   const csvContent = csvLines.join("\r\n");
-  const filename = `${worklist.worklistNumber}-${folderRef}.csv`;
+  const filename = `${worklist.worklistNumber}-${ref}.csv`;
 
   res.setHeader("Content-Type", "text/csv");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);

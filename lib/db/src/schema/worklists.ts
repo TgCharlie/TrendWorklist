@@ -4,7 +4,6 @@ import {
   text,
   integer,
   jsonb,
-  char,
   timestamp,
   pgEnum,
 } from "drizzle-orm/pg-core";
@@ -13,8 +12,8 @@ import { z } from "zod/v4";
 
 export const worklistStatusEnum = pgEnum("worklist_status", [
   "draft",
-  "submitted",
-  "completed",
+  "active",
+  "complete",
 ]);
 
 export const machineTypeEnum = pgEnum("machine_type", ["B", "C"]);
@@ -23,6 +22,7 @@ export const worklistsTable = pgTable("worklists", {
   id: serial("id").primaryKey(),
   worklistNumber: text("worklist_number").notNull().unique(),
   projectId: text("project_id"),
+  projectNumber: text("project_number"),
   projectAddress: text("project_address"),
   cutlistRefs: jsonb("cutlist_refs").default([]),
   machineType: machineTypeEnum("machine_type").notNull(),

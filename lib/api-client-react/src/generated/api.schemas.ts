@@ -348,3 +348,36 @@ export const GetNextFolderMachine = {
   B: "B",
   C: "C",
 } as const;
+
+export interface StockbookItem {
+  id: number;
+  pcode: string;
+  description: string;
+  qtyOnHand: number;
+  /** @nullable */
+  unit?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  lastSyncedAt?: string | null;
+  updatedAt: string;
+}
+
+export interface StockbookListResponse {
+  items: StockbookItem[];
+  /** @nullable */
+  lastSyncedAt?: string | null;
+  total: number;
+}
+
+export interface StockbookSyncResponse {
+  synced: number;
+  /** @nullable */
+  syncedAt?: string | null;
+  /** @nullable */
+  message?: string | null;
+}
+
+export type ListStockbookParams = {
+  search?: string;
+};

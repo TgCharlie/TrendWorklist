@@ -48,6 +48,9 @@ import type {
   WorklistItem,
   WorklistStats,
   WorklistSummary,
+  ListStockbookParams,
+  StockbookListResponse,
+  StockbookSyncResponse,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -2858,4 +2861,130 @@ export const useUpdateSettings = <
   TContext
 > => {
   return useMutation(getUpdateSettingsMutationOptions(options));
+};
+
+// ─── Stockbook ────────────────────────────────────────────────────────────────
+
+export const getListStockbookUrl = (params?: ListStockbookParams) => {
+  const normalizedParams = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+  const stringifiedParams = normalizedParams.toString();
+  return stringifiedParams.length > 0
+    ? `/api/stockbook?${stringifiedParams}`
+    : `/api/stockbook`;
+};
+
+export const listStockbook = async (
+  params?: ListStockbookParams,
+  options?: RequestInit,
+): Promise<StockbookListResponse> => {
+  return customFetch<StockbookListResponse>(getListStockbookUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListStockbookQueryKey = (params?: ListStockbookParams) => {
+  return [`/api/stockbook`, ...(params ? [params] : [])] as const;
+};
+
+export const getListStockbookQueryOptions = <
+  TData = Awaited<ReturnType<typeof listStockbook>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListStockbookParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof listStockbook>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getListStockbookQueryKey(params);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listStockbook>>> = ({ signal }) =>
+    listStockbook(params, { signal, ...requestOptions });
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listStockbook>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListStockbookQueryResult = NonNullable<Awaited<ReturnType<typeof listStockbook>>>;
+export type ListStockbookQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List local stockbook items (synced from FileMaker)
+ */
+export function useListStockbook<
+  TData = Awaited<ReturnType<typeof listStockbook>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListStockbookParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof listStockbook>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListStockbookQueryOptions(params, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  query.queryKey = queryOptions.queryKey;
+  return query;
+}
+
+// Sync mutation
+export const syncStockbook = async (options?: RequestInit): Promise<StockbookSyncResponse> => {
+  return customFetch<StockbookSyncResponse>(`/api/stockbook/sync`, {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSyncStockbookMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncStockbook>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<Awaited<ReturnType<typeof syncStockbook>>, TError, void, TContext> => {
+  const mutationKey = ["syncStockbook"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncStockbook>>, void> = () => {
+    return syncStockbook(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SyncStockbookMutationResult = NonNullable<Awaited<ReturnType<typeof syncStockbook>>>;
+export type SyncStockbookMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Sync stockbook from FileMaker
+ */
+export const useSyncStockbook = <TError = ErrorType<unknown>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncStockbook>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<Awaited<ReturnType<typeof syncStockbook>>, TError, void, TContext> => {
+  return useMutation(getSyncStockbookMutationOptions(options));
 };

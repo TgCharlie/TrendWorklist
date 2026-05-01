@@ -1,16 +1,28 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useListWorklists,
   useDeleteWorklist,
   useCreateWorklist,
+  useAddWorklistItem,
   useListProjects,
   useListCutlists,
+  useListMaterials,
+  useListStockbook,
   getListWorklistsQueryKey,
   getListProjectsQueryKey,
   getListCutlistsQueryKey,
+  getListMaterialsQueryKey,
+  getListStockbookQueryKey,
 } from "@workspace/api-client-react";
-import type { Project, Cutlist, WorklistSummary } from "@workspace/api-client-react";
+import type {
+  Project,
+  Cutlist,
+  WorklistSummary,
+  Material,
+  StockbookItem,
+} from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -21,7 +33,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -31,7 +42,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-zinc-100 text-zinc-700 border border-zinc-200",
@@ -39,7 +49,20 @@ const STATUS_COLORS: Record<string, string> = {
   complete: "bg-green-50 text-green-700 border border-green-200",
 };
 
-type Step = "project" | "cutlists" | "machine";
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Step = "project" | "cutlists" | "machine" | "materials";
+
+interface DraftMaterialRow {
+  rowId: string;
+  materialId: number | null;
+  pcode: string;
+  displayName: string;
+  quantity: number;
+  length: string;
+  width: string;
+  notes: string;
+}
 
 interface CreateState {
   step: Step;
@@ -47,6 +70,7 @@ interface CreateState {
   selectedProject: Project | null;
   selectedCutlistIds: Set<string>;
   machineType: "B" | "C";
+  materialRows: DraftMaterialRow[];
 }
 
 const DEFAULT_STATE: CreateState = {
@@ -55,8 +79,21 @@ const DEFAULT_STATE: CreateState = {
   selectedProject: null,
   selectedCutlistIds: new Set(),
   machineType: "B",
+  materialRows: [],
 };
 
+const EMPTY_ROW = (): DraftMaterialRow => ({
+  rowId: crypto.randomUUID(),
+  materialId: null,
+  pcode: "",
+  displayName: "",
+  quantity: 1,
+  length: "",
+  width: "",
+  notes: "",
+});
+
+// ─── Step components ──────────────────────────────────────────────────────────
 
 function ProjectStep({
   state,
@@ -71,7 +108,6 @@ function ProjectStep({
   const { data: projects, isLoading, isError } = useListProjects(params, {
     query: { queryKey: getListProjectsQueryKey(params), retry: false, staleTime: 10_000 },
   });
-
   const fmUnavailable = isError && !projects;
 
   return (
@@ -80,7 +116,9 @@ function ProjectStep({
         <Label className="text-zinc-700">Search FileMaker Projects</Label>
         <Input
           value={state.projectSearch}
-          onChange={(e) => setState({ ...state, projectSearch: e.target.value, selectedProject: null })}
+          onChange={(e) =>
+            setState({ ...state, projectSearch: e.target.value, selectedProject: null })
+          }
           placeholder="Project number or address…"
           autoFocus
           className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
@@ -93,9 +131,7 @@ function ProjectStep({
           <p className="text-amber-700 text-xs mt-1">Enter project details manually below.</p>
         </div>
       ) : isLoading ? (
-        <div className="text-zinc-400 text-sm text-center py-4 animate-pulse">
-          Searching projects…
-        </div>
+        <div className="text-zinc-400 text-sm text-center py-4 animate-pulse">Searching projects…</div>
       ) : (
         <div className="max-h-52 overflow-y-auto border border-zinc-200 rounded-lg divide-y divide-zinc-100">
           {(projects ?? []).length === 0 ? (
@@ -108,7 +144,9 @@ function ProjectStep({
                 key={p.projectId}
                 onClick={() => setState({ ...state, selectedProject: p })}
                 className={`w-full text-left px-4 py-2.5 hover:bg-zinc-50 transition-colors ${
-                  state.selectedProject?.projectId === p.projectId ? "bg-blue-50 border-l-2 border-blue-500" : ""
+                  state.selectedProject?.projectId === p.projectId
+                    ? "bg-blue-50 border-l-2 border-blue-500"
+                    : ""
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -127,20 +165,20 @@ function ProjectStep({
       {fmUnavailable && (
         <div className="space-y-3 pt-1">
           <div className="space-y-1.5">
-            <Label className="text-zinc-700">Project ID</Label>
+            <Label className="text-zinc-700">Project Number</Label>
             <Input
-              value={state.selectedProject?.projectId ?? ""}
+              value={state.selectedProject?.projectNumber ?? ""}
               onChange={(e) =>
                 setState({
                   ...state,
                   selectedProject: {
-                    projectId: e.target.value,
-                    projectNumber: state.selectedProject?.projectNumber ?? "",
+                    projectId: state.selectedProject?.projectId ?? "",
+                    projectNumber: e.target.value,
                     address: state.selectedProject?.address ?? "",
                   },
                 })
               }
-              placeholder="e.g. P-1234"
+              placeholder="e.g. 1234"
               className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
             />
           </div>
@@ -217,22 +255,29 @@ function CutlistStep({
     setState({ ...state, selectedCutlistIds: next });
   }
 
-  const allSelected = (cutlists ?? []).length > 0 &&
+  const allSelected =
+    (cutlists ?? []).length > 0 &&
     (cutlists ?? []).every((c) => state.selectedCutlistIds.has(c.cutlistId));
 
   function toggleAll() {
     if (allSelected) {
       setState({ ...state, selectedCutlistIds: new Set() });
     } else {
-      setState({ ...state, selectedCutlistIds: new Set((cutlists ?? []).map((c) => c.cutlistId)) });
+      setState({
+        ...state,
+        selectedCutlistIds: new Set((cutlists ?? []).map((c) => c.cutlistId)),
+      });
     }
   }
 
   return (
     <div className="space-y-3">
       <div className="bg-zinc-50 rounded-lg px-3 py-2 text-sm text-zinc-600">
-        Project: <span className="font-mono font-bold text-zinc-950">{state.selectedProject?.projectNumber}</span>
-        {" "}<span className="text-zinc-500">{state.selectedProject?.address}</span>
+        Project:{" "}
+        <span className="font-mono font-bold text-zinc-950">
+          {state.selectedProject?.projectNumber}
+        </span>{" "}
+        <span className="text-zinc-500">{state.selectedProject?.address}</span>
       </div>
 
       <Label className="text-zinc-700 block">Select Cutlists</Label>
@@ -257,7 +302,10 @@ function CutlistStep({
               className="w-4 h-4 accent-blue-600"
               id="select-all-cutlists"
             />
-            <label htmlFor="select-all-cutlists" className="text-zinc-600 text-xs font-medium cursor-pointer">
+            <label
+              htmlFor="select-all-cutlists"
+              className="text-zinc-600 text-xs font-medium cursor-pointer"
+            >
               Select all ({(cutlists ?? []).length})
             </label>
             {state.selectedCutlistIds.size > 0 && (
@@ -310,21 +358,21 @@ function MachineStep({
   state,
   setState,
   onBack,
-  onSubmit,
-  isPending,
+  onNext,
 }: {
   state: CreateState;
   setState: (s: CreateState) => void;
   onBack: () => void;
-  onSubmit: () => void;
-  isPending: boolean;
+  onNext: () => void;
 }) {
   return (
     <div className="space-y-4">
       <div className="bg-zinc-50 rounded-lg px-3 py-2 space-y-1 text-sm">
         <div className="flex items-center gap-2">
           <span className="text-zinc-500">Project:</span>
-          <span className="font-mono font-bold text-zinc-950">{state.selectedProject?.projectNumber}</span>
+          <span className="font-mono font-bold text-zinc-950">
+            {state.selectedProject?.projectNumber}
+          </span>
           <span className="text-zinc-600 truncate">{state.selectedProject?.address}</span>
         </div>
         {state.selectedCutlistIds.size > 0 && (
@@ -332,7 +380,10 @@ function MachineStep({
             <span className="text-zinc-500 flex-shrink-0">Cutlists:</span>
             <div className="flex flex-wrap gap-1">
               {[...state.selectedCutlistIds].map((id) => (
-                <span key={id} className="bg-blue-100 text-blue-800 border border-blue-200 rounded text-xs px-1.5 py-0.5 font-mono">
+                <span
+                  key={id}
+                  className="bg-blue-100 text-blue-800 border border-blue-200 rounded text-xs px-1.5 py-0.5 font-mono"
+                >
                   {id}
                 </span>
               ))}
@@ -368,29 +419,284 @@ function MachineStep({
           </svg>
           Back
         </Button>
-        <Button
-          className="bg-blue-600 hover:bg-blue-700 min-w-32"
-          onClick={onSubmit}
-          disabled={isPending}
-        >
-          {isPending ? "Creating…" : "Create Worklist"}
+        <Button className="bg-blue-600 hover:bg-blue-700" onClick={onNext}>
+          Next: Materials
+          <svg className="w-4 h-4 ml-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
         </Button>
       </div>
     </div>
   );
 }
 
+function MaterialsStep({
+  state,
+  setState,
+  onBack,
+  onSubmit,
+  isPending,
+}: {
+  state: CreateState;
+  setState: (s: CreateState) => void;
+  onBack: () => void;
+  onSubmit: () => void;
+  isPending: boolean;
+}) {
+  const [rowForm, setRowForm] = useState<DraftMaterialRow>(EMPTY_ROW());
+
+  const { data: materials = [] } = useListMaterials(undefined, {
+    query: { queryKey: getListMaterialsQueryKey(), staleTime: 60_000 },
+  });
+
+  const stockParams = rowForm.pcode.trim() ? { search: rowForm.pcode.trim() } : undefined;
+  const { data: stockData } = useListStockbook(stockParams, {
+    query: {
+      queryKey: getListStockbookQueryKey(stockParams),
+      enabled: !!rowForm.pcode.trim(),
+      staleTime: 60_000,
+    },
+  });
+  const stockItem: StockbookItem | undefined = rowForm.pcode.trim()
+    ? stockData?.items.find(
+        (s) => s.pcode.toLowerCase() === rowForm.pcode.trim().toLowerCase(),
+      )
+    : undefined;
+
+  function selectMaterial(mat: Material) {
+    setRowForm((f) => ({
+      ...f,
+      materialId: mat.id,
+      pcode: mat.pcode,
+      displayName: mat.displayName,
+    }));
+  }
+
+  function addRow() {
+    if (!rowForm.pcode.trim()) return;
+    setState({
+      ...state,
+      materialRows: [...state.materialRows, { ...rowForm }],
+    });
+    setRowForm(EMPTY_ROW());
+  }
+
+  function removeRow(rowId: string) {
+    setState({
+      ...state,
+      materialRows: state.materialRows.filter((r) => r.rowId !== rowId),
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Context summary */}
+      <div className="bg-zinc-50 rounded-lg px-3 py-2 text-xs text-zinc-500 flex flex-wrap gap-3">
+        <span>
+          Project:{" "}
+          <span className="font-mono font-semibold text-zinc-800">
+            {state.selectedProject?.projectNumber}
+          </span>
+        </span>
+        <span>
+          Machine:{" "}
+          <span className="font-mono font-semibold text-zinc-800">
+            Rover {state.machineType}
+          </span>
+        </span>
+        {state.selectedCutlistIds.size > 0 && (
+          <span>Cutlists: {state.selectedCutlistIds.size} selected</span>
+        )}
+      </div>
+
+      {/* Add row form */}
+      <div className="border border-zinc-200 rounded-lg p-3 space-y-3">
+        <p className="text-xs font-medium text-zinc-600 uppercase tracking-wide">Add Material Row</p>
+
+        {/* Material library picker */}
+        {materials.length > 0 && (
+          <Select
+            onValueChange={(id) => {
+              const mat = materials.find((m) => String(m.id) === id);
+              if (mat) selectMaterial(mat);
+            }}
+          >
+            <SelectTrigger className="bg-white border-zinc-300 text-zinc-950 text-sm">
+              <SelectValue placeholder="Pick from materials library…" />
+            </SelectTrigger>
+            <SelectContent className="bg-white border-zinc-200">
+              {materials.map((m) => (
+                <SelectItem key={m.id} value={String(m.id)}>
+                  <span className="font-mono text-blue-600 text-xs mr-2">{m.pcode}</span>
+                  {m.displayName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="col-span-1 space-y-1">
+            <Label className="text-zinc-600 text-xs">PCODE *</Label>
+            <Input
+              value={rowForm.pcode}
+              onChange={(e) => setRowForm((f) => ({ ...f, pcode: e.target.value }))}
+              placeholder="MDF18"
+              className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 text-sm h-8"
+            />
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label className="text-zinc-600 text-xs">Description</Label>
+            <Input
+              value={rowForm.displayName}
+              onChange={(e) => setRowForm((f) => ({ ...f, displayName: e.target.value }))}
+              placeholder="Material description"
+              className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 text-sm h-8"
+            />
+          </div>
+        </div>
+
+        {/* Live stock */}
+        {rowForm.pcode.trim() && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-zinc-500">Stock on hand:</span>
+            {stockItem ? (
+              <span
+                className={`font-semibold ${
+                  stockItem.qtyOnHand <= 0
+                    ? "text-red-600"
+                    : stockItem.qtyOnHand < 5
+                    ? "text-amber-600"
+                    : "text-green-700"
+                }`}
+              >
+                {stockItem.qtyOnHand} {stockItem.unit ?? ""}
+              </span>
+            ) : (
+              <span className="text-zinc-400 italic">not in stockbook</span>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-zinc-600 text-xs">Qty</Label>
+            <Input
+              type="number"
+              min={1}
+              value={rowForm.quantity}
+              onChange={(e) => setRowForm((f) => ({ ...f, quantity: Number(e.target.value) }))}
+              className="bg-white border-zinc-300 text-zinc-950 text-sm h-8"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-zinc-600 text-xs">Length (mm)</Label>
+            <Input
+              value={rowForm.length}
+              onChange={(e) => setRowForm((f) => ({ ...f, length: e.target.value }))}
+              placeholder="2400"
+              className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 text-sm h-8"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-zinc-600 text-xs">Width (mm)</Label>
+            <Input
+              value={rowForm.width}
+              onChange={(e) => setRowForm((f) => ({ ...f, width: e.target.value }))}
+              placeholder="1200"
+              className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 text-sm h-8"
+            />
+          </div>
+        </div>
+
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={addRow}
+          disabled={!rowForm.pcode.trim()}
+          className="w-full border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+        >
+          <svg className="w-3.5 h-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add Row
+        </Button>
+      </div>
+
+      {/* Added rows */}
+      {state.materialRows.length > 0 && (
+        <div className="border border-zinc-200 rounded-lg overflow-hidden">
+          <div className="bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-500 uppercase tracking-wide">
+            {state.materialRows.length} row{state.materialRows.length !== 1 ? "s" : ""} added
+          </div>
+          <div className="divide-y divide-zinc-100 max-h-40 overflow-y-auto">
+            {state.materialRows.map((row) => (
+              <div key={row.rowId} className="flex items-center gap-2 px-3 py-2">
+                <span className="font-mono text-blue-600 text-xs w-20 flex-shrink-0 truncate">
+                  {row.pcode}
+                </span>
+                <span className="text-zinc-700 text-xs flex-1 truncate">{row.displayName}</span>
+                <span className="text-zinc-500 text-xs flex-shrink-0">×{row.quantity}</span>
+                {(row.length || row.width) && (
+                  <span className="text-zinc-400 text-xs flex-shrink-0 font-mono">
+                    {row.length || "—"} × {row.width || "—"}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeRow(row.rowId)}
+                  className="text-zinc-300 hover:text-red-500 ml-1 flex-shrink-0"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-between pt-1">
+        <Button variant="ghost" onClick={onBack} className="text-zinc-500">
+          <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back
+        </Button>
+        <Button
+          className="bg-blue-600 hover:bg-blue-700 min-w-40"
+          onClick={onSubmit}
+          disabled={isPending}
+        >
+          {isPending
+            ? "Creating…"
+            : state.materialRows.length > 0
+            ? `Create with ${state.materialRows.length} item${state.materialRows.length !== 1 ? "s" : ""}`
+            : "Create Worklist"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step config ──────────────────────────────────────────────────────────────
+
 const STEP_LABELS: Record<Step, string> = {
   project: "1. Project",
   cutlists: "2. Cutlists",
   machine: "3. Machine",
+  materials: "4. Materials",
 };
 
-const STEPS: Step[] = ["project", "cutlists", "machine"];
+const STEPS: Step[] = ["project", "cutlists", "machine", "materials"];
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function WorklistsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const [showCreate, setShowCreate] = useState(false);
   const [createState, setCreateState] = useState<CreateState>({ ...DEFAULT_STATE });
 
@@ -407,16 +713,40 @@ export default function WorklistsPage() {
     },
   });
 
+  const addItemMutation = useAddWorklistItem({ mutation: {} });
+
   const createMutation = useCreateWorklist({
     mutation: {
-      onSuccess: (newWorklist) => {
+      onSuccess: async (newWorklist) => {
+        const rows = createState.materialRows;
+        if (rows.length > 0) {
+          for (const row of rows) {
+            await addItemMutation.mutateAsync({
+              id: newWorklist.id,
+              data: {
+                materialId: row.materialId ?? undefined,
+                pcode: row.pcode,
+                displayName: row.displayName,
+                quantity: row.quantity,
+                length: row.length ? Number(row.length) : undefined,
+                width: row.width ? Number(row.width) : undefined,
+                notes: row.notes || undefined,
+              },
+            });
+          }
+        }
         queryClient.invalidateQueries({ queryKey: getListWorklistsQueryKey() });
         setShowCreate(false);
         setCreateState({ ...DEFAULT_STATE });
         toast({ title: `Created ${newWorklist.worklistNumber}` });
+        navigate(`/worklists/${newWorklist.id}`);
       },
       onError: (err) => {
-        toast({ title: "Failed to create worklist", description: (err as Error).message, variant: "destructive" });
+        toast({
+          title: "Failed to create worklist",
+          description: (err as Error).message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -450,13 +780,16 @@ export default function WorklistsPage() {
   }
 
   const currentStepIndex = STEPS.indexOf(createState.step);
+  const isPending = createMutation.isPending || addItemMutation.isPending;
 
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-zinc-950">Worklists</h1>
-          <p className="text-zinc-500 text-sm mt-0.5">{(worklists as unknown[]).length} total</p>
+          <p className="text-zinc-500 text-sm mt-0.5">
+            {(worklists as unknown[]).length} total
+          </p>
         </div>
         <Button onClick={handleOpenCreate} className="bg-blue-600 hover:bg-blue-700">
           <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -484,37 +817,82 @@ export default function WorklistsPage() {
             >
               <div className="flex items-start gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="font-mono font-bold text-zinc-950 text-sm">{w.worklistNumber}</span>
-                    <span className="font-mono text-blue-600 text-sm font-semibold">{w.folderRef}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[w.status] ?? STATUS_COLORS.draft}`}>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="font-mono font-bold text-zinc-950 text-sm">
+                      {w.worklistNumber}
+                    </span>
+                    <Badge className="font-mono text-xs px-2 py-0.5 bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-100">
+                      {w.folderRef}
+                    </Badge>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        STATUS_COLORS[w.status] ?? STATUS_COLORS.draft
+                      }`}
+                    >
                       {w.status}
                     </span>
-                    <span className="text-zinc-400 text-xs">{w.itemCount} {w.itemCount === 1 ? "item" : "items"}</span>
+                    <span className="text-zinc-400 text-xs">
+                      {w.itemCount} {w.itemCount === 1 ? "item" : "items"}
+                    </span>
                   </div>
-                  {w.projectAddress && (
-                    <p className="text-zinc-500 text-sm mt-0.5 truncate">{w.projectAddress}</p>
-                  )}
+                  <div className="flex items-center gap-3 mt-0.5 text-xs text-zinc-500">
+                    {w.projectNumber && (
+                      <span className="font-mono font-semibold text-zinc-700">{w.projectNumber}</span>
+                    )}
+                    {w.projectAddress && (
+                      <span className="truncate max-w-xs">{w.projectAddress}</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <Badge variant="outline" className="border-zinc-300 text-zinc-700 font-mono text-xs">
+                  <Badge
+                    variant="outline"
+                    className="border-zinc-300 text-zinc-700 font-mono text-xs"
+                  >
                     Rover {w.machineType}
                   </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-zinc-500 hover:text-zinc-950"
-                    onClick={() => handleDownloadCsv(w)}
-                    title="Download CSV"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                  </Button>
+                  {/* CSV only shown for complete worklists from the list */}
+                  {w.status === "complete" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-zinc-500 hover:text-zinc-950"
+                      onClick={() => handleDownloadCsv(w)}
+                      title="Download CSV"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                        />
+                      </svg>
+                    </Button>
+                  )}
                   <Link href={`/worklists/${w.id}`}>
-                    <Button variant="ghost" size="sm" className="text-zinc-500 hover:text-zinc-950">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-zinc-500 hover:text-zinc-950"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
                       </svg>
                     </Button>
                   </Link>
@@ -525,25 +903,44 @@ export default function WorklistsPage() {
         </div>
       )}
 
-      <Dialog open={showCreate} onOpenChange={(open) => { if (!open) setShowCreate(false); }}>
+      {/* Create Worklist Dialog */}
+      <Dialog
+        open={showCreate}
+        onOpenChange={(open) => {
+          if (!open) setShowCreate(false);
+        }}
+      >
         <DialogContent className="bg-white border-zinc-200 text-zinc-950 max-w-lg">
           <DialogHeader>
             <DialogTitle>New Worklist</DialogTitle>
           </DialogHeader>
 
+          {/* Step indicator */}
           <div className="flex items-center gap-2 mb-4">
             {STEPS.map((step, i) => (
               <div key={step} className="flex items-center gap-2">
-                <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
-                  i === currentStepIndex
-                    ? "bg-blue-600 text-white"
-                    : i < currentStepIndex
+                <div
+                  className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
+                    i === currentStepIndex
+                      ? "bg-blue-600 text-white"
+                      : i < currentStepIndex
                       ? "bg-green-100 text-green-700"
                       : "bg-zinc-100 text-zinc-500"
-                }`}>
+                  }`}
+                >
                   {i < currentStepIndex ? (
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M5 13l4 4L19 7"
+                      />
                     </svg>
                   ) : null}
                   {STEP_LABELS[step]}
@@ -573,8 +970,16 @@ export default function WorklistsPage() {
               state={createState}
               setState={setCreateState}
               onBack={() => setCreateState({ ...createState, step: "cutlists" })}
+              onNext={() => setCreateState({ ...createState, step: "materials" })}
+            />
+          )}
+          {createState.step === "materials" && (
+            <MaterialsStep
+              state={createState}
+              setState={setCreateState}
+              onBack={() => setCreateState({ ...createState, step: "machine" })}
               onSubmit={handleSubmit}
-              isPending={createMutation.isPending}
+              isPending={isPending}
             />
           )}
         </DialogContent>

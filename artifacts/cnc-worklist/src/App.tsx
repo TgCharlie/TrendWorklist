@@ -53,6 +53,7 @@ function AppRoutes() {
     <Layout>
       <Switch>
         <Route path="/" component={WorklistsPage} />
+        <Route path="/worklists" component={WorklistsPage} />
         <Route path="/login"><Redirect to="/" /></Route>
         <Route path="/worklists/:id" component={WorklistDetailPage} />
         <Route path="/cutlists" component={CutlistsPage} />

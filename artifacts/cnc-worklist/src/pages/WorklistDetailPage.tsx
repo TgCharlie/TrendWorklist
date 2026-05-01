@@ -7,11 +7,13 @@ import {
   useAddWorklistItem,
   useDeleteWorklistItem,
   useUpdateWorklist,
+  useListStockbook,
   getGetWorklistQueryKey,
   getListWorklistsQueryKey,
   getListMaterialsQueryKey,
+  getListStockbookQueryKey,
 } from "@workspace/api-client-react";
-import type { WorklistStatus } from "@workspace/api-client-react";
+import type { WorklistStatus, StockbookItem } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +37,12 @@ import { useToast } from "@/hooks/use-toast";
 
 const STATUS_OPTIONS: WorklistStatus[] = ["draft", "active", "complete"];
 
+const STATUS_COLORS: Record<string, string> = {
+  draft: "bg-zinc-100 text-zinc-700 border border-zinc-200",
+  active: "bg-blue-50 text-blue-700 border border-blue-200",
+  complete: "bg-green-50 text-green-700 border border-green-200",
+};
+
 const EMPTY_ITEM = {
   pcode: "",
   displayName: "",
@@ -52,6 +60,7 @@ export default function WorklistDetailPage() {
   const queryClient = useQueryClient();
   const [showAddItem, setShowAddItem] = useState(false);
   const [itemForm, setItemForm] = useState({ ...EMPTY_ITEM });
+  const [stockSearch, setStockSearch] = useState<string | undefined>(undefined);
 
   const { data: worklist, isLoading } = useGetWorklist(numId, {
     query: { queryKey: getGetWorklistQueryKey(numId), enabled: !!numId },
@@ -61,16 +70,33 @@ export default function WorklistDetailPage() {
     query: { queryKey: getListMaterialsQueryKey(), staleTime: 60_000 },
   });
 
+  const stockParams = stockSearch ? { search: stockSearch } : undefined;
+  const { data: stockData } = useListStockbook(stockParams, {
+    query: {
+      queryKey: getListStockbookQueryKey(stockParams),
+      enabled: !!stockSearch,
+      staleTime: 60_000,
+    },
+  });
+  const stockItem: StockbookItem | undefined = stockSearch
+    ? stockData?.items.find((s) => s.pcode.toLowerCase() === stockSearch.toLowerCase())
+    : undefined;
+
   const addItemMutation = useAddWorklistItem({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetWorklistQueryKey(numId) });
         setShowAddItem(false);
         setItemForm({ ...EMPTY_ITEM });
+        setStockSearch(undefined);
         toast({ title: "Item added" });
       },
       onError: (err) => {
-        toast({ title: "Failed to add item", description: (err as Error).message, variant: "destructive" });
+        toast({
+          title: "Failed to add item",
+          description: (err as Error).message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -103,7 +129,12 @@ export default function WorklistDetailPage() {
         pcode: mat.pcode,
         displayName: mat.displayName,
       }));
+      setStockSearch(mat.pcode);
     }
+  }
+
+  function handlePcodeBlur() {
+    if (itemForm.pcode.trim()) setStockSearch(itemForm.pcode.trim());
   }
 
   function handleDownloadCsv() {
@@ -134,29 +165,50 @@ export default function WorklistDetailPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {/* Header */}
       <div className="flex items-start gap-4 mb-6">
-        <Link href="/" className="text-zinc-500 hover:text-zinc-950 mt-1 flex-shrink-0">
+        <Link href="/worklists" className="text-zinc-500 hover:text-zinc-950 mt-1 flex-shrink-0">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </Link>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
+          {/* Title row */}
+          <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-2xl font-bold text-zinc-950 font-mono">{worklist.worklistNumber}</h1>
-            <span className="font-mono text-blue-600 text-lg font-semibold">{worklist.folderRef}</span>
+            <Badge className="font-mono text-sm px-2.5 py-0.5 bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-100">
+              {worklist.folderRef}
+            </Badge>
             <Badge variant="outline" className="border-zinc-300 text-zinc-700">
               Rover {worklist.machineType}
             </Badge>
+            <span
+              className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                STATUS_COLORS[worklist.status] ?? STATUS_COLORS.draft
+              }`}
+            >
+              {worklist.status}
+            </span>
           </div>
 
+          {/* Project details */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-sm text-zinc-500">
-            {worklist.projectId && (
+            {worklist.projectNumber && (
               <span className="flex items-center gap-1">
                 <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
                 </svg>
-                Project <span className="text-zinc-700 font-medium font-mono">{worklist.projectId}</span>
+                <span className="text-zinc-400">Project</span>
+                <span className="text-zinc-800 font-semibold font-mono">{worklist.projectNumber}</span>
+              </span>
+            )}
+            {worklist.projectId && !worklist.projectNumber && (
+              <span className="flex items-center gap-1">
+                <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                </svg>
+                <span className="text-zinc-700 font-mono">{worklist.projectId}</span>
               </span>
             )}
             {worklist.projectAddress && (
@@ -168,20 +220,18 @@ export default function WorklistDetailPage() {
                 <span className="truncate">{worklist.projectAddress}</span>
               </span>
             )}
-            <span className="flex items-center gap-1">
-              <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span className="flex items-center gap-1 text-zinc-400 text-xs">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               {createdDate}
             </span>
-            <span className="flex items-center gap-1">
-              <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
+            <span className="text-zinc-400 text-xs">
               {items.length} {items.length === 1 ? "item" : "items"}
             </span>
           </div>
 
+          {/* Cutlist pills */}
           {cutlistRefs.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
               <span className="text-zinc-400 text-xs">Cutlists:</span>
@@ -197,6 +247,7 @@ export default function WorklistDetailPage() {
           )}
         </div>
 
+        {/* Actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <Select
             value={worklist.status}
@@ -209,7 +260,9 @@ export default function WorklistDetailPage() {
             </SelectTrigger>
             <SelectContent className="bg-white border-zinc-200">
               {STATUS_OPTIONS.map((s) => (
-                <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                <SelectItem key={s} value={s} className="capitalize">
+                  {s}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -218,6 +271,7 @@ export default function WorklistDetailPage() {
             size="sm"
             className="border-zinc-300 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100"
             onClick={handleDownloadCsv}
+            title="Download CSV"
           >
             <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -227,11 +281,16 @@ export default function WorklistDetailPage() {
         </div>
       </div>
 
+      {/* Items section */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-zinc-950 font-semibold">
           Items <span className="text-zinc-500 font-normal text-sm">({items.length})</span>
         </h2>
-        <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setShowAddItem(true)}>
+        <Button
+          size="sm"
+          className="bg-blue-600 hover:bg-blue-700"
+          onClick={() => setShowAddItem(true)}
+        >
           <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -254,7 +313,7 @@ export default function WorklistDetailPage() {
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">L (mm)</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">W (mm)</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Notes</th>
-                <th className="px-4 py-2.5"></th>
+                <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
@@ -284,7 +343,12 @@ export default function WorklistDetailPage() {
                       className="text-zinc-400 hover:text-red-500 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
                       </svg>
                     </button>
                   </td>
@@ -295,7 +359,17 @@ export default function WorklistDetailPage() {
         </div>
       )}
 
-      <Dialog open={showAddItem} onOpenChange={setShowAddItem}>
+      {/* Add Item Dialog */}
+      <Dialog
+        open={showAddItem}
+        onOpenChange={(open) => {
+          setShowAddItem(open);
+          if (!open) {
+            setItemForm({ ...EMPTY_ITEM });
+            setStockSearch(undefined);
+          }
+        }}
+      >
         <DialogContent className="bg-white border-zinc-200 text-zinc-950">
           <DialogHeader>
             <DialogTitle>Add Item</DialogTitle>
@@ -319,12 +393,14 @@ export default function WorklistDetailPage() {
                 </Select>
               </div>
             )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-zinc-700">PCODE</Label>
                 <Input
                   value={itemForm.pcode}
                   onChange={(e) => setItemForm((f) => ({ ...f, pcode: e.target.value }))}
+                  onBlur={handlePcodeBlur}
                   placeholder="e.g. MDF18"
                   className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
                 />
@@ -340,6 +416,29 @@ export default function WorklistDetailPage() {
                 />
               </div>
             </div>
+
+            {/* Live stock display */}
+            {stockSearch && (
+              <div className="rounded-md bg-zinc-50 border border-zinc-200 px-3 py-2 text-xs flex items-center gap-3">
+                <span className="text-zinc-500">Stock on hand:</span>
+                {stockItem ? (
+                  <span
+                    className={`font-semibold ${
+                      stockItem.qtyOnHand <= 0
+                        ? "text-red-600"
+                        : stockItem.qtyOnHand < 5
+                        ? "text-amber-600"
+                        : "text-green-700"
+                    }`}
+                  >
+                    {stockItem.qtyOnHand} {stockItem.unit ?? ""}
+                  </span>
+                ) : (
+                  <span className="text-zinc-400 italic">Not found in stockbook</span>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label className="text-zinc-700">Description</Label>
               <Input
@@ -375,7 +474,15 @@ export default function WorklistDetailPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowAddItem(false)} className="text-zinc-400">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowAddItem(false);
+                setItemForm({ ...EMPTY_ITEM });
+                setStockSearch(undefined);
+              }}
+              className="text-zinc-400"
+            >
               Cancel
             </Button>
             <Button
@@ -394,7 +501,7 @@ export default function WorklistDetailPage() {
                   },
                 })
               }
-              disabled={addItemMutation.isPending}
+              disabled={addItemMutation.isPending || !itemForm.pcode}
             >
               {addItemMutation.isPending ? "Adding…" : "Add Item"}
             </Button>

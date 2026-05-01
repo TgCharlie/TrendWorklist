@@ -1,4 +1,13 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  shell,
+  Tray,
+  Menu,
+  nativeImage,
+} = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
@@ -9,6 +18,46 @@ const WEBAPP_URL =
   process.env.WEBAPP_URL || "https://your-deployed-app.replit.app";
 
 let mainWindow;
+let tray = null;
+
+function createTray() {
+  const iconPath = path.join(__dirname, "build", "tray-icon.png");
+  const trayIcon = fs.existsSync(iconPath)
+    ? nativeImage.createFromPath(iconPath)
+    : nativeImage.createEmpty();
+
+  tray = new Tray(trayIcon);
+  tray.setToolTip("CNC Worklist Manager");
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Show CNC Worklist Manager",
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Quit",
+      click: () => {
+        app.isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  tray.on("double-click", () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -62,6 +111,10 @@ ipcMain.handle("save-csv", async (_event, { csvContent, suggestedFilename }) => 
 app.whenReady().then(() => {
   createWindow();
 
+  if (process.platform === "win32") {
+    createTray();
+  }
+
   autoUpdater.checkForUpdatesAndNotify();
 
   app.on("activate", () => {
@@ -71,6 +124,10 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   app.isQuitting = true;
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
 });
 
 app.on("window-all-closed", () => {

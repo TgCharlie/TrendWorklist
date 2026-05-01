@@ -12,6 +12,12 @@ files:
   - package.json
   - node_modules/**/*
 
+# Icon files (optional but recommended):
+#   build/icon.ico      — Windows (256×256 ICO)
+#   build/icon.icns     — macOS (512×512 ICNS)
+#   build/tray-icon.png — Windows system tray (16×16 or 32×32 PNG)
+# If absent, electron-builder falls back to the default Electron icon.
+
 win:
   target:
     - target: nsis
@@ -20,7 +26,6 @@ win:
     - target: msi
       arch:
         - x64
-  icon: build/icon.ico
 
 nsis:
   oneClick: false
@@ -39,7 +44,6 @@ mac:
       arch:
         - x64
         - arm64
-  icon: build/icon.icns
   category: public.app-category.productivity
   hardenedRuntime: true
   gatekeeperAssess: false
@@ -56,10 +60,10 @@ dmg:
       type: link
       path: /Applications
 
+# owner/repo are auto-detected from the git remote and the GITHUB_REPOSITORY
+# environment variable (set automatically by GitHub Actions).
 publish:
   provider: github
-  owner: your-github-username
-  repo: cnc-worklist-electron
   releaseType: release
 
 autoUpdatable: true

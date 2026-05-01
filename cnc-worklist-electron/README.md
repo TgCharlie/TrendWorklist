@@ -88,6 +88,31 @@ Set these in **Settings → Secrets and variables → Actions**:
 
 ---
 
+## Adding app icons (recommended before first release)
+
+Place these files in the `build/` directory to replace the default Electron icon:
+
+| File | Size | Used for |
+|---|---|---|
+| `build/icon.ico` | 256×256 | Windows installer & taskbar |
+| `build/icon.icns` | 512×512 | macOS installer & Dock |
+| `build/tray-icon.png` | 16×16 or 32×32 | Windows system tray |
+
+If the files are absent, `electron-builder` falls back to the default Electron icon and the build will still succeed.
+
+---
+
+## Windows system tray
+
+On Windows, closing the main window minimizes the app to the system tray rather than quitting it. A tray icon appears in the notification area with a right-click context menu:
+
+- **Show CNC Worklist Manager** — restores and focuses the window
+- **Quit** — fully exits the app
+
+Double-clicking the tray icon also restores the window. The tray is removed when the app fully quits.
+
+---
+
 ## Code signing
 
 **Installers are currently unsigned.** Windows will show a SmartScreen warning on first run; users can click "More info → Run anyway." macOS will show a Gatekeeper warning; users can right-click → Open to bypass it once.

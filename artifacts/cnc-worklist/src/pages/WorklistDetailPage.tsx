@@ -39,6 +39,9 @@ interface Material {
   id: number;
   pcode: string;
   displayName: string;
+  length: number | null;
+  width: number | null;
+  thickness: number | null;
 }
 
 interface Worklist {
@@ -128,6 +131,9 @@ export default function WorklistDetailPage() {
         materialId: mat.id,
         pcode: mat.pcode,
         displayName: mat.displayName,
+        length: mat.length?.toString() ?? "",
+        width: mat.width?.toString() ?? "",
+        thickness: mat.thickness?.toString() ?? "",
       }));
     }
   }
@@ -342,6 +348,15 @@ export default function WorklistDetailPage() {
                   className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
                 />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-zinc-700">Thickness (mm)</Label>
+              <Input
+                value={itemForm.thickness}
+                onChange={(e) => setItemForm((f) => ({ ...f, thickness: e.target.value }))}
+                placeholder="18"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
+              />
             </div>
             <div className="space-y-1.5">
                 <Label className="text-zinc-700">Notes</Label>

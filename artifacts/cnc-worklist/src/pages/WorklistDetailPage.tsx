@@ -138,12 +138,21 @@ export default function WorklistDetailPage() {
     if (itemForm.pcode.trim()) setStockSearch(itemForm.pcode.trim());
   }
 
-  function handleDownloadCsv() {
+  async function handleDownloadCsv() {
     if (!worklist) return;
-    downloadCsv(
-      `/api/worklists/${worklist.id}/csv`,
-      `${worklist.worklistNumber}.csv`,
-    );
+    try {
+      await downloadCsv(
+        `/api/worklists/${worklist.id}/csv`,
+        `${worklist.worklistNumber}.csv`,
+      );
+    } catch (err) {
+      toast({
+        title: "Download failed",
+        description:
+          err instanceof Error ? err.message : "Could not download CSV",
+        variant: "destructive",
+      });
+    }
   }
 
   if (isLoading) {

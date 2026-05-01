@@ -771,8 +771,20 @@ export default function WorklistsPage() {
     });
   }
 
-  function handleDownloadCsv(wl: { id: number; worklistNumber: string }) {
-    downloadCsv(`/api/worklists/${wl.id}/csv`, `${wl.worklistNumber}.csv`);
+  async function handleDownloadCsv(wl: { id: number; worklistNumber: string }) {
+    try {
+      await downloadCsv(
+        `/api/worklists/${wl.id}/csv`,
+        `${wl.worklistNumber}.csv`,
+      );
+    } catch (err) {
+      toast({
+        title: "Download failed",
+        description:
+          err instanceof Error ? err.message : "Could not download CSV",
+        variant: "destructive",
+      });
+    }
   }
 
   const currentStepIndex = STEPS.indexOf(createState.step);

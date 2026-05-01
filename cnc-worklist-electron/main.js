@@ -33,11 +33,20 @@ function getWebappUrl() {
 
 const WEBAPP_URL = getWebappUrl();
 
+// In packaged builds, runtime assets live in process.resourcesPath.
+// In development, they live next to main.js.
+function getAssetPath(relativePath) {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, relativePath);
+  }
+  return path.join(__dirname, relativePath);
+}
+
 let mainWindow;
 let tray = null;
 
 function createTray() {
-  const iconPath = path.join(__dirname, "build", "tray-icon.png");
+  const iconPath = getAssetPath(path.join("build", "tray-icon.png"));
   const trayIcon = fs.existsSync(iconPath)
     ? nativeImage.createFromPath(iconPath)
     : nativeImage.createEmpty();

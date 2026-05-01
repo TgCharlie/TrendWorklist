@@ -13,11 +13,19 @@ files:
   - config.json
   - node_modules/**/*
 
-# Icon files (optional but recommended):
-#   build/icon.ico      — Windows (256×256 ICO)
-#   build/icon.icns     — macOS (512×512 ICNS)
-#   build/tray-icon.png — Windows system tray (16×16 or 32×32 PNG)
+# Runtime assets — copied to process.resourcesPath in packaged builds.
+# Place icon files in build/ before releasing:
+#   build/icon.ico      — Windows app & installer icon (256×256 ICO)
+#   build/icon.icns     — macOS app icon (512×512 ICNS)
+#   build/tray-icon.png — Windows system tray icon (16×16 or 32×32 PNG)
 # If absent, electron-builder falls back to the default Electron icon.
+extraResources:
+  - from: build/
+    to: build/
+    filter:
+      - "*.png"
+      - "*.ico"
+      - "*.icns"
 
 win:
   target:

@@ -27,7 +27,19 @@ cp .env.example .env
 npm start
 ```
 
-The app window loads the URL specified in `WEBAPP_URL`. If running against a local backend, you can point this at `http://localhost:3000` (or whatever port the dev server uses).
+The app resolves the target URL in this priority order:
+
+1. **`config.json`** (written by CI at build time — do not commit this file)
+2. **`WEBAPP_URL` environment variable** (from `.env`, for local dev)
+3. Hardcoded fallback `https://your-deployed-app.replit.app`
+
+If you want to test the packaged binary locally, copy `config.json.example` to `config.json` and set the real URL there:
+
+```bash
+cp config.json.example config.json
+# Edit config.json with your URL
+npm run build:win   # or build:mac
+```
 
 ---
 

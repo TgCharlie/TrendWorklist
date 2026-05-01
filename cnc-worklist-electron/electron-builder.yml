@@ -10,6 +10,7 @@ files:
   - main.js
   - preload.js
   - package.json
+  - config.json
   - node_modules/**/*
 
 # Icon files (optional but recommended):

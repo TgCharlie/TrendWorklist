@@ -12,10 +12,26 @@ const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
 
+// Load .env for local development (no-op in packaged builds)
 require("dotenv").config();
 
-const WEBAPP_URL =
-  process.env.WEBAPP_URL || "https://your-deployed-app.replit.app";
+function getWebappUrl() {
+  // 1. config.json — written by CI at build time and bundled into the installer
+  try {
+    const configPath = path.join(__dirname, "config.json");
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    if (config.webappUrl && config.webappUrl.startsWith("http")) {
+      return config.webappUrl;
+    }
+  } catch (_) {}
+
+  // 2. WEBAPP_URL env var — for local development via .env
+  if (process.env.WEBAPP_URL) return process.env.WEBAPP_URL;
+
+  return "https://your-deployed-app.replit.app";
+}
+
+const WEBAPP_URL = getWebappUrl();
 
 let mainWindow;
 let tray = null;

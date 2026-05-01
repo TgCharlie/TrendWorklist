@@ -232,11 +232,11 @@ paths:
     get:
       operationId: listCutlists
       tags: [cutlists]
-      summary: List cutlists from FileMaker
+      summary: List cutlists from FileMaker for a given project
       parameters:
         - name: projectId
           in: query
-          required: false
+          required: true
           schema:
             type: string
       responses:
@@ -832,21 +832,20 @@ components:
 
     StockLevel:
       type: object
+      description: Stock level record from FileMaker StockBook (may include additional field data)
       properties:
         pcode:
           type: string
         description:
           type: string
-        quantity:
-          type: number
+        qtyOnHand:
+          type: ["number", "null"]
         unit:
-          type: ["string", "null"]
-        location:
           type: ["string", "null"]
       required:
         - pcode
         - description
-        - quantity
+      additionalProperties: true
 
     Material:
       type: object
@@ -893,59 +892,50 @@ components:
 
     WorklistSummary:
       type: object
+      description: Summary view of a worklist (returned by list endpoint)
       properties:
         id:
           type: integer
         worklistNumber:
           type: string
         projectId:
-          type: string
-        projectNumber:
-          type: string
+          type: ["string", "null"]
         projectAddress:
-          type: string
+          type: ["string", "null"]
         machineType:
           type: string
           enum: [B, C]
         folderNumber:
           type: integer
-        folderRef:
-          type: string
         status:
           type: string
           enum: [draft, submitted, completed]
-        itemCount:
-          type: integer
+        createdBy:
+          type: ["integer", "null"]
+          description: ID of the user who created the worklist
         createdAt:
           type: string
           format: date-time
-        createdByUsername:
-          type: ["string", "null"]
       required:
         - id
         - worklistNumber
-        - projectId
-        - projectAddress
         - machineType
         - folderNumber
-        - folderRef
         - status
-        - itemCount
         - createdAt
 
     Worklist:
       type: object
+      description: Full worklist with items (returned by GET /worklists/:id)
       properties:
         id:
           type: integer
         worklistNumber:
           type: string
         projectId:
-          type: string
-        projectNumber:
-          type: string
+          type: ["string", "null"]
         projectAddress:
-          type: string
+          type: ["string", "null"]
         cutlistRefs:
           type: array
           items:
@@ -955,16 +945,15 @@ components:
           enum: [B, C]
         folderNumber:
           type: integer
-        folderRef:
-          type: string
         status:
           type: string
           enum: [draft, submitted, completed]
+        createdBy:
+          type: ["integer", "null"]
+          description: ID of the user who created the worklist
         createdAt:
           type: string
           format: date-time
-        createdByUsername:
-          type: ["string", "null"]
         items:
           type: array
           items:
@@ -972,9 +961,6 @@ components:
       required:
         - id
         - worklistNumber
-        - projectId
-        - projectAddress
-        - cutlistRefs
         - machineType
         - folderNumber
         - status

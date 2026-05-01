@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../lib/auth-middleware";
-import { findProjectsCached, findCutlistsByProject } from "../lib/filemaker";
+import { findProjectsCached, findProjectById, findCutlistsByProject } from "../lib/filemaker";
 
 const router = Router();
 
@@ -17,9 +17,8 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
 
 router.get("/:id", requireAuth, async (req, res): Promise<void> => {
   try {
-    const projectId = req.params.id as string;
-    const all = await findProjectsCached();
-    const project = all.find((p) => String(p.id) === projectId);
+    const projectId = String(req.params.id);
+    const project = await findProjectById(projectId);
     if (!project) {
       res.status(404).json({ error: "Project not found" });
       return;

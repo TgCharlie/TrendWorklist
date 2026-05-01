@@ -141,6 +141,24 @@ export async function findProjects(search?: string): Promise<Array<Record<string
   });
 }
 
+// Direct project lookup by ProjectID field (no list scan / cache dependency)
+export async function findProjectById(projectId: string): Promise<Record<string, unknown> | null> {
+  return withToken(async (config, token) => {
+    const layout = "Projects";
+    const records = await findRecords(config, token, layout, [{ ProjectID: projectId }], 1);
+    if (!records.length) return null;
+    const r = records[0];
+    return {
+      id: r.fieldData["ProjectID"] as string,
+      recordId: r.recordId,
+      address: r.fieldData["Address"] as string,
+      clientName: r.fieldData["ClientName"] as string,
+      status: r.fieldData["Status"] as string,
+      ...r.fieldData,
+    };
+  });
+}
+
 // Cutlists layout columns: CutlistID, ProjectID, Description, Status
 export async function findCutlistsByProject(projectId: string): Promise<Array<Record<string, unknown>>> {
   return withToken(async (config, token) => {

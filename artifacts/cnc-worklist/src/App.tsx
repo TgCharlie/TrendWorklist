@@ -11,6 +11,7 @@ import CutlistsPage from "@/pages/CutlistsPage";
 import MaterialsPage from "@/pages/MaterialsPage";
 import FavouritesPage from "@/pages/FavouritesPage";
 import AdminPortalPage from "@/pages/admin/AdminPortalPage";
+import StockbookPage from "@/pages/StockbookPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -56,6 +57,7 @@ function AppRoutes() {
         <Route path="/worklists/:id" component={WorklistDetailPage} />
         <Route path="/cutlists" component={CutlistsPage} />
         <Route path="/materials" component={MaterialsPage} />
+        <Route path="/stockbook" component={StockbookPage} />
         <Route path="/favourites" component={FavouritesPage} />
         <Route path="/admin">
           <AdminRoute component={AdminPortalPage} />

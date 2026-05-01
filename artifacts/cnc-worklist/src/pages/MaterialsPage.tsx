@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/hooks/useApi";
+import { useGetMaterialStock } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,35 +16,28 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
-interface StockInfo {
-  pcode: string;
-  qtyOnHand: number | null;
-  unit: string | null;
-}
-
 function StockBadge({ materialId }: { materialId: number }) {
-  const { data, isLoading, isError } = useQuery<StockInfo>({
-    queryKey: ["stock", materialId],
-    queryFn: () => apiFetch(`/materials/${materialId}/stock`),
-    retry: false,
-    staleTime: 60_000,
+  const { data, isLoading, isError } = useGetMaterialStock(materialId, {
+    query: { retry: false, staleTime: 60_000 },
   });
 
   if (isLoading) {
     return <span className="text-zinc-300 text-xs animate-pulse">…</span>;
   }
-  if (isError || data?.qtyOnHand == null) {
+  if (isError || data == null || (data as { quantity?: number }).quantity == null) {
     return <span className="text-zinc-300 text-xs">—</span>;
   }
+  const qty = (data as { quantity: number }).quantity;
+  const unit = (data as { unit?: string | null }).unit ?? "";
   const color =
-    data.qtyOnHand <= 0
+    qty <= 0
       ? "text-red-600 bg-red-50 border-red-200"
-      : data.qtyOnHand < 5
+      : qty < 5
         ? "text-amber-700 bg-amber-50 border-amber-200"
         : "text-green-700 bg-green-50 border-green-200";
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium border ${color}`}>
-      {data.qtyOnHand} {data.unit ?? ""}
+      {qty} {unit}
     </span>
   );
 }

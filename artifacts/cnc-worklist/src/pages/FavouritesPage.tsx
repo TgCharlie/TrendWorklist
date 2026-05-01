@@ -1,6 +1,12 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/hooks/useApi";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useListMaterials,
+  useListWorklists,
+  useToggleFavourite,
+  useAddWorklistItem,
+  getListMaterialsQueryKey,
+} from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,88 +27,67 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
-interface Material {
-  id: number;
+interface AddState {
+  materialId: number;
   pcode: string;
   displayName: string;
-  length: number | null;
-  width: number | null;
-  thickness: number | null;
-  notes: string | null;
-  isFavourite: boolean;
-}
-
-interface Worklist {
-  id: number;
-  worklistNumber: string;
-  projectId: string | null;
-  projectAddress: string | null;
-  machineType: "B" | "C";
-  status: string;
-}
-
-interface AddToWorklistState {
-  material: Material;
-  worklistId: string;
-  quantity: number;
   length: string;
   width: string;
   thickness: string;
+  worklistId: string;
+  quantity: number;
   notes: string;
 }
 
 export default function FavouritesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [addState, setAddState] = useState<AddToWorklistState | null>(null);
+  const [addState, setAddState] = useState<AddState | null>(null);
 
-  const { data: favourites = [], isLoading } = useQuery<Material[]>({
-    queryKey: ["materials", "favourites"],
-    queryFn: () => apiFetch("/materials?favouritesOnly=true"),
+  const { data: favourites = [], isLoading } = useListMaterials(
+    { favouritesOnly: true },
+    { query: { staleTime: 30_000 } }
+  );
+
+  const { data: worklists = [] } = useListWorklists(undefined, {
+    query: { staleTime: 30_000, select: (wls) => wls.filter((w) => w.status === "draft") },
   });
 
-  const { data: worklists = [] } = useQuery<Worklist[]>({
-    queryKey: ["worklists"],
-    queryFn: () => apiFetch("/worklists"),
-    select: (wls) => wls.filter((w) => w.status === "draft"),
-  });
-
-  const toggleFavouriteMutation = useMutation({
-    mutationFn: (id: number) =>
-      apiFetch(`/materials/${id}/favourite`, { method: "POST" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["materials"] });
-      toast({ title: "Removed from favourites" });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+  const toggleFavouriteMutation = useToggleFavourite({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListMaterialsQueryKey() });
+        toast({ title: "Removed from favourites" });
+      },
+      onError: (err) => {
+        toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+      },
     },
   });
 
-  const addToWorklistMutation = useMutation({
-    mutationFn: ({ worklistId, data }: { worklistId: string; data: Record<string, unknown> }) =>
-      apiFetch(`/worklists/${worklistId}/items`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["worklists"] });
-      setAddState(null);
-      toast({ title: "Item added to worklist" });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Failed to add item", description: err.message, variant: "destructive" });
+  const addToWorklistMutation = useAddWorklistItem({
+    mutation: {
+      onSuccess: () => {
+        setAddState(null);
+        toast({ title: "Item added to worklist" });
+      },
+      onError: (err) => {
+        toast({ title: "Failed", description: (err as Error).message, variant: "destructive" });
+      },
     },
   });
 
-  function openAddDialog(material: Material) {
+  function openAddDialog(m: { id: number; pcode: string; displayName: string; length: number | null; width: number | null; thickness: number | null }) {
+    const draftWorklists = worklists as Array<{ id: number }>;
     setAddState({
-      material,
-      worklistId: worklists[0]?.id.toString() ?? "",
+      materialId: m.id,
+      pcode: m.pcode,
+      displayName: m.displayName,
+      length: m.length?.toString() ?? "",
+      width: m.width?.toString() ?? "",
+      thickness: m.thickness?.toString() ?? "",
+      worklistId: draftWorklists[0]?.id.toString() ?? "",
       quantity: 1,
-      length: material.length?.toString() ?? "",
-      width: material.width?.toString() ?? "",
-      thickness: material.thickness?.toString() ?? "",
       notes: "",
     });
   }
@@ -110,19 +95,37 @@ export default function FavouritesPage() {
   function handleAddConfirm() {
     if (!addState || !addState.worklistId) return;
     addToWorklistMutation.mutate({
-      worklistId: addState.worklistId,
+      id: Number(addState.worklistId),
       data: {
-        materialId: addState.material.id,
-        pcode: addState.material.pcode,
-        displayName: addState.material.displayName,
+        materialId: addState.materialId,
+        pcode: addState.pcode,
+        displayName: addState.displayName,
         quantity: addState.quantity,
-        length: addState.length || null,
-        width: addState.width || null,
-        thickness: addState.thickness || null,
-        notes: addState.notes || null,
+        length: addState.length ? Number(addState.length) : undefined,
+        width: addState.width ? Number(addState.width) : undefined,
+        thickness: addState.thickness ? Number(addState.thickness) : undefined,
+        notes: addState.notes || undefined,
       },
     });
   }
+
+  const mats = favourites as Array<{
+    id: number;
+    pcode: string;
+    displayName: string;
+    length: number | null;
+    width: number | null;
+    thickness: number | null;
+    notes: string | null;
+  }>;
+
+  const draftWorklists = worklists as Array<{
+    id: number;
+    worklistNumber: string;
+    projectId: string | null;
+    projectAddress: string | null;
+    status: string;
+  }>;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -134,20 +137,14 @@ export default function FavouritesPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-zinc-400 text-center py-16">Loading...</div>
-      ) : favourites.length === 0 ? (
+        <div className="text-zinc-400 text-center py-16">Loading…</div>
+      ) : mats.length === 0 ? (
         <Card className="bg-white border-zinc-200 p-12 text-center">
-          <svg
-            className="w-10 h-10 text-zinc-200 mx-auto mb-3"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg className="w-10 h-10 text-zinc-200 mx-auto mb-3" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
           </svg>
           <p className="text-zinc-500 text-sm">No favourites yet.</p>
-          <p className="text-zinc-400 text-xs mt-1">
-            Star a material on the Materials screen to add it here.
-          </p>
+          <p className="text-zinc-400 text-xs mt-1">Star a material on the Materials screen to add it here.</p>
         </Card>
       ) : (
         <div className="overflow-hidden rounded-lg border border-zinc-200">
@@ -164,25 +161,17 @@ export default function FavouritesPage() {
               </tr>
             </thead>
             <tbody>
-              {favourites.map((m, i) => (
+              {mats.map((m, i) => (
                 <tr
                   key={m.id}
                   data-testid={`row-favourite-${m.id}`}
                   className={`border-t border-zinc-200 ${i % 2 === 0 ? "bg-white" : "bg-zinc-50"}`}
                 >
-                  <td className="px-4 py-2.5 font-mono text-blue-600 text-xs font-bold">
-                    {m.pcode}
-                  </td>
+                  <td className="px-4 py-2.5 font-mono text-blue-600 text-xs font-bold">{m.pcode}</td>
                   <td className="px-4 py-2.5 text-zinc-800">{m.displayName}</td>
-                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">
-                    {m.length ?? "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">
-                    {m.width ?? "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">
-                    {m.thickness ?? "—"}
-                  </td>
+                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.length ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.width ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.thickness ?? "—"}</td>
                   <td className="px-4 py-2.5 text-zinc-500 text-xs">{m.notes}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2 justify-end">
@@ -199,7 +188,7 @@ export default function FavouritesPage() {
                       </button>
                       <button
                         data-testid={`button-unfavourite-${m.id}`}
-                        onClick={() => toggleFavouriteMutation.mutate(m.id)}
+                        onClick={() => toggleFavouriteMutation.mutate({ id: m.id })}
                         title="Remove from favourites"
                         className="text-yellow-500 hover:text-zinc-400 transition-colors p-1"
                       >
@@ -224,13 +213,13 @@ export default function FavouritesPage() {
           {addState && (
             <div className="space-y-4 py-1">
               <div className="bg-zinc-50 rounded-lg px-3 py-2.5 border border-zinc-200">
-                <p className="font-mono text-blue-600 text-xs font-bold">{addState.material.pcode}</p>
-                <p className="text-zinc-800 text-sm mt-0.5">{addState.material.displayName}</p>
+                <p className="font-mono text-blue-600 text-xs font-bold">{addState.pcode}</p>
+                <p className="text-zinc-800 text-sm mt-0.5">{addState.displayName}</p>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-zinc-700">Worklist</Label>
-                {worklists.length === 0 ? (
-                  <p className="text-zinc-500 text-sm italic">No draft worklists available. Create one first.</p>
+                {draftWorklists.length === 0 ? (
+                  <p className="text-zinc-500 text-sm italic">No draft worklists. Create one first.</p>
                 ) : (
                   <Select
                     value={addState.worklistId}
@@ -240,7 +229,7 @@ export default function FavouritesPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-white border-zinc-200">
-                      {worklists.map((wl) => (
+                      {draftWorklists.map((wl) => (
                         <SelectItem key={wl.id} value={wl.id.toString()}>
                           <span className="font-mono text-xs mr-2">{wl.worklistNumber}</span>
                           {wl.projectId && <span className="text-zinc-500">— {wl.projectId}</span>}
@@ -259,23 +248,20 @@ export default function FavouritesPage() {
                   type="number"
                   min={1}
                   value={addState.quantity}
-                  onChange={(e) =>
-                    setAddState((s) => s ? { ...s, quantity: parseInt(e.target.value) || 1 } : s)
-                  }
+                  onChange={(e) => setAddState((s) => s ? { ...s, quantity: parseInt(e.target.value) || 1 } : s)}
                   className="bg-white border-zinc-300 text-zinc-950 max-w-24"
                 />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {(["length", "width", "thickness"] as const).map((dim) => (
                   <div key={dim} className="space-y-1.5">
-                    <Label className="text-zinc-700 capitalize">{dim === "thickness" ? "T" : dim === "length" ? "L" : "W"} (mm)</Label>
+                    <Label className="text-zinc-700">
+                      {dim === "length" ? "L" : dim === "width" ? "W" : "T"} (mm)
+                    </Label>
                     <Input
                       type="number"
                       value={addState[dim]}
-                      onChange={(e) =>
-                        setAddState((s) => s ? { ...s, [dim]: e.target.value } : s)
-                      }
-                      placeholder={`${dim === "thickness" ? "T" : dim === "length" ? "L" : "W"}`}
+                      onChange={(e) => setAddState((s) => s ? { ...s, [dim]: e.target.value } : s)}
                       className="bg-white border-zinc-300 text-zinc-950 font-mono text-sm"
                     />
                   </div>
@@ -285,19 +271,15 @@ export default function FavouritesPage() {
                 <Label className="text-zinc-700">Notes (optional)</Label>
                 <Input
                   value={addState.notes}
-                  onChange={(e) =>
-                    setAddState((s) => s ? { ...s, notes: e.target.value } : s)
-                  }
-                  placeholder="Any notes..."
+                  onChange={(e) => setAddState((s) => s ? { ...s, notes: e.target.value } : s)}
+                  placeholder="Any notes…"
                   className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
                 />
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setAddState(null)} className="text-zinc-400">
-              Cancel
-            </Button>
+            <Button variant="ghost" onClick={() => setAddState(null)} className="text-zinc-400">Cancel</Button>
             <Button
               className="bg-blue-600 hover:bg-blue-700"
               onClick={handleAddConfirm}

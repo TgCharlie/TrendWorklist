@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/hooks/useApi";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useGetWorklist,
+  useListMaterials,
+  useAddWorklistItem,
+  useDeleteWorklistItem,
+  useUpdateWorklist,
+  getGetWorklistQueryKey,
+  getListWorklistsQueryKey,
+} from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,111 +31,76 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
-interface WorklistItem {
-  id: number;
-  worklistId: number;
-  materialId: number | null;
-  pcode: string | null;
-  displayName: string | null;
-  quantity: number;
-  length: string | null;
-  width: string | null;
-  thickness: string | null;
-  notes: string | null;
-}
-
-interface Material {
-  id: number;
-  pcode: string;
-  displayName: string;
-  length: number | null;
-  width: number | null;
-  thickness: number | null;
-}
-
-interface Worklist {
-  id: number;
-  worklistNumber: string;
-  projectId: string | null;
-  projectAddress: string | null;
-  machineType: "B" | "C";
-  folderNumber: number;
-  status: "draft" | "submitted" | "completed";
-  createdAt: string;
-  items: WorklistItem[];
-}
-
 const EMPTY_ITEM = {
   pcode: "",
   displayName: "",
   quantity: 1,
-  length: "",
-  width: "",
-  thickness: "",
-  notes: "",
+  length: "" as string,
+  width: "" as string,
+  thickness: "" as string,
+  notes: "" as string,
   materialId: null as number | null,
 };
 
+const STATUS_OPTIONS = ["draft", "submitted", "completed"];
+
+function fmtFolderRef(machineType: string, folderNumber: number) {
+  return `${machineType}${String(folderNumber).padStart(4, "0")}`;
+}
+
 export default function WorklistDetailPage() {
   const { id } = useParams();
+  const numId = Number(id);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showAddItem, setShowAddItem] = useState(false);
   const [itemForm, setItemForm] = useState({ ...EMPTY_ITEM });
 
-  const { data: worklist, isLoading } = useQuery<Worklist>({
-    queryKey: ["worklist", id],
-    queryFn: () => apiFetch(`/worklists/${id}`),
-    enabled: !!id,
+  const { data: worklist, isLoading } = useGetWorklist(numId, {
+    query: { enabled: !!numId },
   });
 
-  const { data: materials = [] } = useQuery<Material[]>({
-    queryKey: ["materials"],
-    queryFn: () => apiFetch("/materials"),
+  const { data: materials = [] } = useListMaterials(undefined, {
+    query: { staleTime: 60_000 },
   });
 
-  const addItemMutation = useMutation({
-    mutationFn: (data: typeof itemForm) =>
-      apiFetch<WorklistItem>(`/worklists/${id}/items`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["worklist", id] });
-      setShowAddItem(false);
-      setItemForm({ ...EMPTY_ITEM });
-      toast({ title: "Item added" });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Failed to add item", description: err.message, variant: "destructive" });
+  const addItemMutation = useAddWorklistItem({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetWorklistQueryKey(numId) });
+        setShowAddItem(false);
+        setItemForm({ ...EMPTY_ITEM });
+        toast({ title: "Item added" });
+      },
+      onError: (err) => {
+        toast({ title: "Failed to add item", description: (err as Error).message, variant: "destructive" });
+      },
     },
   });
 
-  const deleteItemMutation = useMutation({
-    mutationFn: (itemId: number) =>
-      apiFetch(`/worklists/${id}/items/${itemId}`, { method: "DELETE" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["worklist", id] });
-      queryClient.refetchQueries({ queryKey: ["worklist", id] });
-      toast({ title: "Item removed" });
+  const deleteItemMutation = useDeleteWorklistItem({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetWorklistQueryKey(numId) });
+        toast({ title: "Item removed" });
+      },
     },
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: (status: string) =>
-      apiFetch(`/worklists/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ status }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["worklist", id] });
-      queryClient.invalidateQueries({ queryKey: ["worklists"] });
-      toast({ title: "Status updated" });
+  const updateStatusMutation = useUpdateWorklist({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetWorklistQueryKey(numId) });
+        queryClient.invalidateQueries({ queryKey: getListWorklistsQueryKey() });
+        toast({ title: "Status updated" });
+      },
     },
   });
 
   function handleMaterialSelect(materialId: string) {
-    const mat = materials.find((m) => String(m.id) === materialId);
+    const mat = (materials as Array<{ id: number; pcode: string; displayName: string; length: number | null; width: number | null; thickness: number | null }>).find(
+      (m) => String(m.id) === materialId
+    );
     if (mat) {
       setItemForm((f) => ({
         ...f,
@@ -144,7 +117,7 @@ export default function WorklistDetailPage() {
   function handleDownloadCsv() {
     if (!worklist) return;
     const a = document.createElement("a");
-    a.href = `/api/worklists/${worklist.id}/csv`;
+    a.href = `/api/worklists/${worklist.id}/download-csv`;
     a.download = `${worklist.worklistNumber}.csv`;
     document.body.appendChild(a);
     a.click();
@@ -152,16 +125,13 @@ export default function WorklistDetailPage() {
   }
 
   if (isLoading) {
-    return <div className="text-zinc-400 text-center py-16">Loading...</div>;
+    return <div className="text-zinc-400 text-center py-16">Loading…</div>;
   }
-
   if (!worklist) {
     return <div className="text-zinc-400 text-center py-16">Worklist not found</div>;
   }
 
-  const folderRef = `${worklist.machineType}${String(worklist.folderNumber).padStart(4, "0")}`;
-
-  const STATUS_OPTIONS = ["draft", "submitted", "completed"];
+  const computedFolderRef = fmtFolderRef(worklist.machineType, worklist.folderNumber);
 
   const createdDate = new Date(worklist.createdAt).toLocaleDateString("en-AU", {
     day: "2-digit",
@@ -169,33 +139,41 @@ export default function WorklistDetailPage() {
     year: "numeric",
   });
 
+  const cutlistRefs: string[] = Array.isArray(worklist.cutlistRefs)
+    ? (worklist.cutlistRefs as string[])
+    : [];
+
+  const items = worklist.items ?? [];
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-start gap-4 mb-6">
-        <Link href="/" className="text-zinc-500 hover:text-zinc-950 mt-1">
+        <Link href="/" className="text-zinc-500 hover:text-zinc-950 mt-1 flex-shrink-0">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </Link>
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-zinc-950 font-mono">{worklist.worklistNumber}</h1>
-            <span className="font-mono text-blue-600 text-lg font-semibold">{folderRef}</span>
+            <span className="font-mono text-blue-600 text-lg font-semibold">{computedFolderRef}</span>
             <Badge variant="outline" className="border-zinc-300 text-zinc-700">
               Rover {worklist.machineType}
             </Badge>
           </div>
+
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-sm text-zinc-500">
             {worklist.projectId && (
               <span className="flex items-center gap-1">
                 <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
                 </svg>
-                Project <span className="text-zinc-700 font-medium">{worklist.projectId}</span>
+                Project <span className="text-zinc-700 font-medium font-mono">{worklist.projectId}</span>
               </span>
             )}
             {worklist.projectAddress && (
-              <span className="flex items-center gap-1 truncate">
+              <span className="flex items-center gap-1 truncate max-w-xs">
                 <svg className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -213,14 +191,29 @@ export default function WorklistDetailPage() {
               <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
-              {worklist.items.length} {worklist.items.length === 1 ? "item" : "items"}
+              {items.length} {items.length === 1 ? "item" : "items"}
             </span>
           </div>
+
+          {cutlistRefs.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span className="text-zinc-400 text-xs">Cutlists:</span>
+              {cutlistRefs.map((ref) => (
+                <span
+                  key={ref}
+                  className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-800 font-mono text-xs"
+                >
+                  {ref}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
+
         <div className="flex items-center gap-2 flex-shrink-0">
           <Select
             value={worklist.status}
-            onValueChange={(v) => updateStatusMutation.mutate(v)}
+            onValueChange={(v) => updateStatusMutation.mutate({ id: numId, data: { status: v as "draft" | "active" | "complete" } })}
           >
             <SelectTrigger className="bg-white border-zinc-300 text-zinc-950 h-9 text-sm w-36">
               <SelectValue />
@@ -247,13 +240,9 @@ export default function WorklistDetailPage() {
 
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-zinc-950 font-semibold">
-          Items <span className="text-zinc-500 font-normal text-sm">({worklist.items.length})</span>
+          Items <span className="text-zinc-500 font-normal text-sm">({items.length})</span>
         </h2>
-        <Button
-          size="sm"
-          className="bg-blue-600 hover:bg-blue-700"
-          onClick={() => setShowAddItem(true)}
-        >
+        <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setShowAddItem(true)}>
           <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -261,7 +250,7 @@ export default function WorklistDetailPage() {
         </Button>
       </div>
 
-      {worklist.items.length === 0 ? (
+      {items.length === 0 ? (
         <Card className="bg-white border-zinc-200 p-10 text-center">
           <p className="text-zinc-500 text-sm">No items yet. Add materials to this worklist.</p>
         </Card>
@@ -281,7 +270,7 @@ export default function WorklistDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {worklist.items.map((item, i) => (
+              {items.map((item, i) => (
                 <tr
                   key={item.id}
                   className={`border-t border-zinc-200 ${i % 2 === 0 ? "bg-white" : "bg-zinc-50"}`}
@@ -304,7 +293,7 @@ export default function WorklistDetailPage() {
                       type="button"
                       onClick={() => {
                         if (confirm(`Delete ${item.pcode ?? "item"}?`)) {
-                          deleteItemMutation.mutate(item.id);
+                          deleteItemMutation.mutate({ id: numId, itemId: item.id });
                         }
                       }}
                       className="text-zinc-400 hover:text-red-500 transition-colors"
@@ -327,15 +316,15 @@ export default function WorklistDetailPage() {
             <DialogTitle>Add Item</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {materials.length > 0 && (
+            {(materials as unknown[]).length > 0 && (
               <div className="space-y-1.5">
                 <Label className="text-zinc-700">Select from materials library</Label>
                 <Select onValueChange={handleMaterialSelect}>
                   <SelectTrigger className="bg-white border-zinc-300 text-zinc-950">
-                    <SelectValue placeholder="Choose a material..." />
+                    <SelectValue placeholder="Choose a material…" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-zinc-200">
-                    {materials.map((m) => (
+                    {(materials as Array<{ id: number; pcode: string; displayName: string }>).map((m) => (
                       <SelectItem key={m.id} value={String(m.id)}>
                         <span className="font-mono text-blue-600 text-xs mr-2">{m.pcode}</span>
                         {m.displayName}
@@ -367,7 +356,7 @@ export default function WorklistDetailPage() {
               </div>
             </div>
             <div className="space-y-1.5">
-                <Label className="text-zinc-700">Description</Label>
+              <Label className="text-zinc-700">Description</Label>
               <Input
                 value={itemForm.displayName}
                 onChange={(e) => setItemForm((f) => ({ ...f, displayName: e.target.value }))}
@@ -375,37 +364,23 @@ export default function WorklistDetailPage() {
                 className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-zinc-700">Length (mm)</Label>
-                <Input
-                  value={itemForm.length}
-                  onChange={(e) => setItemForm((f) => ({ ...f, length: e.target.value }))}
-                  placeholder="2400"
-                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-zinc-700">Width (mm)</Label>
-                <Input
-                  value={itemForm.width}
-                  onChange={(e) => setItemForm((f) => ({ ...f, width: e.target.value }))}
-                  placeholder="1200"
-                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
-                />
-              </div>
+            <div className="grid grid-cols-3 gap-3">
+              {(["length", "width", "thickness"] as const).map((dim) => (
+                <div key={dim} className="space-y-1.5">
+                  <Label className="text-zinc-700">
+                    {dim === "length" ? "L" : dim === "width" ? "W" : "T"} (mm)
+                  </Label>
+                  <Input
+                    value={itemForm[dim]}
+                    onChange={(e) => setItemForm((f) => ({ ...f, [dim]: e.target.value }))}
+                    placeholder={dim === "length" ? "2400" : dim === "width" ? "1200" : "18"}
+                    className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
+                  />
+                </div>
+              ))}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-zinc-700">Thickness (mm)</Label>
-              <Input
-                value={itemForm.thickness}
-                onChange={(e) => setItemForm((f) => ({ ...f, thickness: e.target.value }))}
-                placeholder="18"
-                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
-              />
-            </div>
-            <div className="space-y-1.5">
-                <Label className="text-zinc-700">Notes</Label>
+              <Label className="text-zinc-700">Notes</Label>
               <Input
                 value={itemForm.notes}
                 onChange={(e) => setItemForm((f) => ({ ...f, notes: e.target.value }))}
@@ -420,10 +395,24 @@ export default function WorklistDetailPage() {
             </Button>
             <Button
               className="bg-blue-600 hover:bg-blue-700"
-              onClick={() => addItemMutation.mutate(itemForm)}
+              onClick={() =>
+                addItemMutation.mutate({
+                  id: numId,
+                  data: {
+                    materialId: itemForm.materialId ?? undefined,
+                    pcode: itemForm.pcode,
+                    displayName: itemForm.displayName,
+                    quantity: itemForm.quantity,
+                    length: itemForm.length ? Number(itemForm.length) : undefined,
+                    width: itemForm.width ? Number(itemForm.width) : undefined,
+                    thickness: itemForm.thickness ? Number(itemForm.thickness) : undefined,
+                    notes: itemForm.notes || undefined,
+                  },
+                })
+              }
               disabled={addItemMutation.isPending}
             >
-              {addItemMutation.isPending ? "Adding..." : "Add Item"}
+              {addItemMutation.isPending ? "Adding…" : "Add Item"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
-type Tab = "users" | "settings";
+type Tab = "users" | "filemaker" | "server";
 
 interface User {
   id: number;
@@ -286,8 +286,9 @@ function UsersTab() {
   );
 }
 
-function SettingsTab() {
+function useSettingsForm() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<Settings>({
     filemaker_server_url: "",
     filemaker_database: "",
@@ -296,11 +297,8 @@ function SettingsTab() {
     csv_server_path: "",
     worklist_start_number: "1",
   });
-  const [showFmPassword, setShowFmPassword] = useState(false);
-  const [forceOverride, setForceOverride] = useState(false);
-  const queryClient = useQueryClient();
 
-  const { data: settings, isLoading: settingsLoading } = useQuery<Settings>({
+  const { data: settings, isLoading } = useQuery<Settings>({
     queryKey: ["settings"],
     queryFn: () => apiFetch("/settings"),
   });
@@ -326,54 +324,38 @@ function SettingsTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings-next-number"] });
       toast({ title: "Settings saved" });
-      setForceOverride(false);
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
-  function handleSave() {
-    const updates: Record<string, unknown> = { ...form };
-    if (!updates.filemaker_password) delete updates.filemaker_password;
-    if (forceOverride) updates.force_override = true;
-    saveMutation.mutate(updates);
-  }
+  return { form, setForm, settings, isLoading, nextNumber, saveMutation };
+}
 
-  if (settingsLoading) {
-    return <div className="text-zinc-400 text-center py-12">Loading...</div>;
+function FileMakerTab() {
+  const { form, setForm, settings, isLoading, saveMutation } = useSettingsForm();
+  const [showPassword, setShowPassword] = useState(false);
+
+  if (isLoading) return <div className="text-zinc-400 text-center py-12">Loading…</div>;
+
+  function handleSave() {
+    const updates: Record<string, unknown> = {
+      filemaker_server_url: form.filemaker_server_url,
+      filemaker_database: form.filemaker_database,
+      filemaker_username: form.filemaker_username,
+    };
+    if (form.filemaker_password) updates.filemaker_password = form.filemaker_password;
+    saveMutation.mutate(updates);
   }
 
   return (
     <div className="space-y-6">
-      {nextNumber && (
-        <Card className="bg-blue-50 border-blue-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-900 font-semibold text-sm">Next Worklist Number</p>
-              <p className="text-blue-700 font-mono text-2xl font-bold mt-0.5">{nextNumber.formatted}</p>
-              {nextNumber.worklistsExist && (
-                <p className="text-blue-600 text-xs mt-1">
-                  Worklists exist — changing the start number requires enabling Force Reset below.
-                </p>
-              )}
-            </div>
-            <div className="text-blue-300">
-              <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            </div>
-          </div>
-        </Card>
-      )}
-
       <Card className="bg-white border-zinc-200 p-6">
-        <h2 className="text-zinc-950 font-semibold mb-4 flex items-center gap-2">
-          <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-          </svg>
-          FileMaker Data API
-        </h2>
+        <h2 className="text-zinc-950 font-semibold mb-1">FileMaker Data API</h2>
+        <p className="text-zinc-500 text-sm mb-5">
+          Connection credentials for the FileMaker server. Used to import projects, cutlists and stock levels.
+        </p>
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label className="text-zinc-700">Server URL</Label>
@@ -407,7 +389,7 @@ function SettingsTab() {
               <Label className="text-zinc-700">Password</Label>
               <div className="relative">
                 <Input
-                  type={showFmPassword ? "text" : "password"}
+                  type={showPassword ? "text" : "password"}
                   value={form.filemaker_password}
                   onChange={(e) => setForm((f) => ({ ...f, filemaker_password: e.target.value }))}
                   placeholder={settings?.filemaker_password === "***" ? "••••••• (saved)" : "Enter password"}
@@ -415,10 +397,10 @@ function SettingsTab() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowFmPassword(!showFmPassword)}
+                  onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-950"
                 >
-                  {showFmPassword ? (
+                  {showPassword ? (
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                     </svg>
@@ -435,13 +417,57 @@ function SettingsTab() {
         </div>
       </Card>
 
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saveMutation.isPending} className="bg-blue-600 hover:bg-blue-700 min-w-28">
+          {saveMutation.isPending ? "Saving…" : "Save FileMaker Settings"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ServerTab() {
+  const { form, setForm, isLoading, nextNumber, saveMutation } = useSettingsForm();
+  const [forceOverride, setForceOverride] = useState(false);
+
+  if (isLoading) return <div className="text-zinc-400 text-center py-12">Loading…</div>;
+
+  function handleSave() {
+    const updates: Record<string, unknown> = {
+      csv_server_path: form.csv_server_path,
+      worklist_start_number: form.worklist_start_number,
+    };
+    if (forceOverride) updates.force_override = true;
+    saveMutation.mutate(updates);
+    setForceOverride(false);
+  }
+
+  return (
+    <div className="space-y-6">
+      {nextNumber && (
+        <Card className="bg-blue-50 border-blue-200 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-900 font-semibold text-sm">Next Worklist Number</p>
+              <p className="text-blue-700 font-mono text-2xl font-bold mt-0.5">{nextNumber.formatted}</p>
+              {nextNumber.worklistsExist && (
+                <p className="text-blue-600 text-xs mt-1">
+                  Worklists exist — changing the start number requires enabling Force Reset.
+                </p>
+              )}
+            </div>
+            <div className="text-blue-300">
+              <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+          </div>
+        </Card>
+      )}
+
       <Card className="bg-white border-zinc-200 p-6">
-        <h2 className="text-zinc-950 font-semibold mb-4 flex items-center gap-2">
-          <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Worklist Settings
-        </h2>
+        <h2 className="text-zinc-950 font-semibold mb-1">Worklist Numbering</h2>
+        <p className="text-zinc-500 text-sm mb-5">Configure the numbering sequence for new worklists.</p>
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label className="text-zinc-700">Start Number</Label>
@@ -462,9 +488,7 @@ function SettingsTab() {
                 </span>
               )}
             </div>
-            <p className="text-zinc-500 text-xs">
-              The number for the next worklist to be created.
-            </p>
+            <p className="text-zinc-500 text-xs">The sequence number that will be used for the next worklist.</p>
           </div>
           <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <input
@@ -479,32 +503,31 @@ function SettingsTab() {
                 Force Reset Sequence Counter
               </Label>
               <p className="text-amber-700 text-xs mt-0.5">
-                Resets the sequence to the start number above. Existing worklists keep their numbers. Use with caution.
+                Resets the sequence to the start number. Existing worklists keep their numbers. Use with caution.
               </p>
             </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-zinc-700">CSV Server Path</Label>
-            <Input
-              value={form.csv_server_path}
-              onChange={(e) => setForm((f) => ({ ...f, csv_server_path: e.target.value }))}
-              placeholder="\\server\share\worklists"
-              className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono text-sm"
-            />
-            <p className="text-zinc-500 text-xs">
-              Windows UNC path where CSV files are saved on the local server.
-            </p>
           </div>
         </div>
       </Card>
 
+      <Card className="bg-white border-zinc-200 p-6">
+        <h2 className="text-zinc-950 font-semibold mb-1">CSV Output</h2>
+        <p className="text-zinc-500 text-sm mb-5">Local server path where CSV files are written.</p>
+        <div className="space-y-1.5">
+          <Label className="text-zinc-700">CSV Server Path</Label>
+          <Input
+            value={form.csv_server_path}
+            onChange={(e) => setForm((f) => ({ ...f, csv_server_path: e.target.value }))}
+            placeholder="\\server\share\worklists"
+            className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono text-sm"
+          />
+          <p className="text-zinc-500 text-xs">Windows UNC path on the local server where output CSV files are saved.</p>
+        </div>
+      </Card>
+
       <div className="flex justify-end">
-        <Button
-          onClick={handleSave}
-          disabled={saveMutation.isPending}
-          className="bg-blue-600 hover:bg-blue-700 min-w-28"
-        >
-          {saveMutation.isPending ? "Saving..." : "Save Settings"}
+        <Button onClick={handleSave} disabled={saveMutation.isPending} className="bg-blue-600 hover:bg-blue-700 min-w-28">
+          {saveMutation.isPending ? "Saving…" : "Save Server Settings"}
         </Button>
       </div>
     </div>
@@ -516,7 +539,8 @@ export default function AdminPortalPage() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "users", label: "Users" },
-    { key: "settings", label: "Settings" },
+    { key: "filemaker", label: "FileMaker" },
+    { key: "server", label: "Server" },
   ];
 
   return (
@@ -543,7 +567,8 @@ export default function AdminPortalPage() {
       </div>
 
       {tab === "users" && <UsersTab />}
-      {tab === "settings" && <SettingsTab />}
+      {tab === "filemaker" && <FileMakerTab />}
+      {tab === "server" && <ServerTab />}
     </div>
   );
 }

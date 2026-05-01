@@ -45,11 +45,25 @@ function getAssetPath(relativePath) {
 let mainWindow;
 let tray = null;
 
+// Create a solid blue 16x16 icon as a guaranteed visible fallback when
+// build/tray-icon.png is not present (raw BGRA pixel data).
+function createFallbackTrayIcon() {
+  const size = 16;
+  const buf = Buffer.alloc(size * size * 4);
+  for (let i = 0; i < buf.length; i += 4) {
+    buf[i] = 60;      // B
+    buf[i + 1] = 120; // G
+    buf[i + 2] = 200; // R  (steel blue)
+    buf[i + 3] = 255; // A  (fully opaque)
+  }
+  return nativeImage.createFromBitmap(buf, { width: size, height: size });
+}
+
 function createTray() {
   const iconPath = getAssetPath(path.join("build", "tray-icon.png"));
   const trayIcon = fs.existsSync(iconPath)
     ? nativeImage.createFromPath(iconPath)
-    : nativeImage.createEmpty();
+    : createFallbackTrayIcon();
 
   tray = new Tray(trayIcon);
   tray.setToolTip("CNC Worklist Manager");

@@ -4,6 +4,16 @@ Native desktop wrapper for the CNC Worklist Manager, built with Electron. The ap
 
 ---
 
+## Repository structure
+
+This directory is designed to be pushed as its own **standalone GitHub repository** (`cnc-worklist-electron`). The GitHub Actions workflow at `.github/workflows/release.yml` expects the repository root to be this directory.
+
+If this code is kept inside a larger monorepo, you have two options:
+1. Extract the `cnc-worklist-electron/` directory and push it as a separate repo (recommended).
+2. Keep it in the monorepo and add `working-directory: cnc-worklist-electron` to each step in the workflow.
+
+---
+
 ## Prerequisites
 
 - Node.js 20 or later

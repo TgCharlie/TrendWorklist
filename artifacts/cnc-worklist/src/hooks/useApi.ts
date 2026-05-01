@@ -18,6 +18,9 @@ async function apiFetch<T>(
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `HTTP ${res.status}`);
   }
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
   return res.json();
 }
 

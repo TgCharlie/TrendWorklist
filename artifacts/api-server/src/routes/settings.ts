@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { requireAdmin } from "../lib/auth-middleware";
 import { getAllSettings, setSettings } from "../lib/settings";
-import { db, worklistSequenceTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, worklistSequenceTable, worklistsTable } from "@workspace/db";
+import { count, eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -32,7 +32,8 @@ router.get("/", requireAdmin, async (req, res): Promise<void> => {
 });
 
 router.put("/", requireAdmin, async (req, res): Promise<void> => {
-  const body = req.body as Record<string, string | number>;
+  const body = req.body as Record<string, string | number | boolean>;
+  const forceOverride = body.force_override === true;
   const updates: Record<string, string> = {};
 
   for (const key of ALLOWED_KEYS) {
@@ -43,17 +44,26 @@ router.put("/", requireAdmin, async (req, res): Promise<void> => {
 
   if (updates.worklist_start_number !== undefined) {
     const startNumber = Math.max(1, parseInt(updates.worklist_start_number, 10) || 1);
-    const seqRows = await db.select().from(worklistSequenceTable).limit(1);
-    if (seqRows.length === 0) {
-      // No sequence row yet — setting will be used on first worklist creation
+
+    const [{ count: worklistCount }] = await db.select({ count: count() }).from(worklistsTable);
+    const worklistsExist = Number(worklistCount) > 0;
+
+    if (!worklistsExist || forceOverride) {
+      // Apply the override: reset sequence so the next worklist gets startNumber
+      const seqRows = await db.select().from(worklistSequenceTable).limit(1);
+      if (seqRows.length === 0) {
+        // Sequence not created yet — just save the setting, it will be used on first creation
+      } else {
+        await db
+          .update(worklistSequenceTable)
+          .set({ lastNumber: startNumber - 1 })
+          .where(eq(worklistSequenceTable.id, seqRows[0].id));
+      }
+      updates.worklist_start_number = String(startNumber);
     } else {
-      // Override the sequence counter to the new start value (minus 1 so next will be startNumber)
-      await db
-        .update(worklistSequenceTable)
-        .set({ lastNumber: startNumber - 1 })
-        .where(eq(worklistSequenceTable.id, seqRows[0].id));
+      // Worklists exist and no force_override — ignore the start number change
+      delete updates.worklist_start_number;
     }
-    updates.worklist_start_number = String(startNumber);
   }
 
   await setSettings(updates);

@@ -27,6 +27,7 @@ export default function SettingsPage() {
     worklist_start_number: "1",
   });
   const [showFmPassword, setShowFmPassword] = useState(false);
+  const [forceOverride, setForceOverride] = useState(false);
 
   const { data: settings, isLoading } = useQuery<Settings>({
     queryKey: ["settings"],
@@ -54,9 +55,10 @@ export default function SettingsPage() {
   });
 
   function handleSave() {
-    const updates: Partial<Settings> = { ...form };
+    const updates: Partial<Settings> & { force_override?: boolean } = { ...form };
     if (!updates.filemaker_password) delete updates.filemaker_password;
-    saveMutation.mutate(updates);
+    if (forceOverride) updates.force_override = true;
+    saveMutation.mutate(updates as Partial<Settings>);
   }
 
   if (isLoading) {
@@ -157,8 +159,20 @@ export default function SettingsPage() {
                 className="bg-zinc-800 border-zinc-700 text-white max-w-40"
               />
               <p className="text-zinc-500 text-xs">
-                Only effective before the first worklist is created. After that, numbering continues sequentially.
+                Only effective before the first worklist is created, or when Force Reset is enabled.
               </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="force-override"
+                type="checkbox"
+                checked={forceOverride}
+                onChange={(e) => setForceOverride(e.target.checked)}
+                className="w-4 h-4 accent-red-500"
+              />
+              <Label htmlFor="force-override" className="text-zinc-300 text-sm cursor-pointer">
+                Force reset sequence counter (use with caution — existing worklists keep their numbers)
+              </Label>
             </div>
             <div className="space-y-1.5">
               <Label className="text-zinc-300">CSV Server Path</Label>

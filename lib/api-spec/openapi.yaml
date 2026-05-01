@@ -434,25 +434,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /materials/{id}/favourite:
-    post:
-      operationId: toggleFavourite
-      tags: [materials]
-      summary: Toggle favourite status for a material (per user)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Favourite toggled
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FavouriteResponse"
-
   /worklists:
     get:
       operationId: listWorklists
@@ -882,8 +863,6 @@ components:
           type: string
         notes:
           type: ["string", "null"]
-        isFavourite:
-          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -891,7 +870,6 @@ components:
         - id
         - pcode
         - displayName
-        - isFavourite
         - createdAt
 
     CreateMaterialBody:
@@ -917,17 +895,6 @@ components:
         notes:
           type: ["string", "null"]
 
-    FavouriteResponse:
-      type: object
-      properties:
-        isFavourite:
-          type: boolean
-        materialId:
-          type: integer
-      required:
-        - isFavourite
-        - materialId
-
     WorklistSummary:
       type: object
       properties:
@@ -950,7 +917,7 @@ components:
           type: string
         status:
           type: string
-          enum: [draft, active, complete]
+          enum: [draft, submitted, completed]
         itemCount:
           type: integer
         createdAt:
@@ -962,7 +929,6 @@ components:
         - id
         - worklistNumber
         - projectId
-        - projectNumber
         - projectAddress
         - machineType
         - folderNumber
@@ -997,7 +963,7 @@ components:
           type: string
         status:
           type: string
-          enum: [draft, active, complete]
+          enum: [draft, submitted, completed]
         createdAt:
           type: string
           format: date-time
@@ -1011,12 +977,10 @@ components:
         - id
         - worklistNumber
         - projectId
-        - projectNumber
         - projectAddress
         - cutlistRefs
         - machineType
         - folderNumber
-        - folderRef
         - status
         - createdAt
         - items
@@ -1025,8 +989,6 @@ components:
       type: object
       properties:
         projectId:
-          type: string
-        projectNumber:
           type: string
         projectAddress:
           type: string
@@ -1038,10 +1000,6 @@ components:
           type: string
           enum: [B, C]
       required:
-        - projectId
-        - projectNumber
-        - projectAddress
-        - cutlistRefs
         - machineType
 
     UpdateWorklistBody:
@@ -1049,7 +1007,7 @@ components:
       properties:
         status:
           type: string
-          enum: [draft, active, complete]
+          enum: [draft, submitted, completed]
         cutlistRefs:
           type: array
           items:
@@ -1076,15 +1034,12 @@ components:
           type: ["integer", "null"]
         notes:
           type: ["string", "null"]
-        sortOrder:
-          type: integer
       required:
         - id
         - worklistId
         - pcode
         - displayName
         - quantity
-        - sortOrder
 
     CreateWorklistItemBody:
       type: object
@@ -1111,6 +1066,10 @@ components:
     UpdateWorklistItemBody:
       type: object
       properties:
+        pcode:
+          type: string
+        displayName:
+          type: string
         quantity:
           type: integer
         length:
@@ -1119,81 +1078,75 @@ components:
           type: ["integer", "null"]
         notes:
           type: ["string", "null"]
-        sortOrder:
-          type: integer
 
     WorklistStats:
       type: object
       properties:
-        totalWorklists:
+        total:
           type: integer
-        draftCount:
-          type: integer
-        activeCount:
-          type: integer
-        completeCount:
-          type: integer
-        totalItemsThisMonth:
-          type: integer
+        byStatus:
+          type: object
+          additionalProperties:
+            type: integer
         nextWorklistNumber:
           type: string
       required:
-        - totalWorklists
-        - draftCount
-        - activeCount
-        - completeCount
-        - totalItemsThisMonth
+        - total
+        - byStatus
         - nextWorklistNumber
 
     FolderRef:
       type: object
       properties:
-        machine:
+        machineType:
           type: string
-        folderNumber:
+          enum: [B, C]
+        next:
           type: integer
-        folderRef:
+        formatted:
           type: string
       required:
-        - machine
-        - folderNumber
-        - folderRef
+        - machineType
+        - next
+        - formatted
 
     AppSettings:
       type: object
       properties:
-        filemakerServerUrl:
+        filemaker_server_url:
           type: string
-        filemakerDatabase:
+        filemaker_database:
           type: string
-        filemakerUsername:
+        filemaker_username:
           type: string
-        csvServerPath:
+        filemaker_password:
           type: string
-        worklistStartNumber:
-          type: integer
-        nextWorklistNumber:
-          type: integer
+        csv_server_path:
+          type: string
+        worklist_start_number:
+          type: string
       required:
-        - filemakerServerUrl
-        - filemakerDatabase
-        - filemakerUsername
-        - csvServerPath
-        - worklistStartNumber
-        - nextWorklistNumber
+        - filemaker_server_url
+        - filemaker_database
+        - filemaker_username
+        - csv_server_path
+        - worklist_start_number
 
     UpdateSettingsBody:
       type: object
       properties:
-        filemakerServerUrl:
+        filemaker_server_url:
           type: string
-        filemakerDatabase:
+        filemaker_database:
           type: string
-        filemakerUsername:
+        filemaker_username:
           type: string
-        filemakerPassword:
+        filemaker_password:
           type: string
-        csvServerPath:
+        csv_server_path:
           type: string
-        worklistStartNumber:
+        worklist_start_number:
           type: integer
+        force_override:
+          type: boolean
+          description: When true, resets the sequence counter even if worklists already exist

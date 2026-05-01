@@ -5,7 +5,7 @@ import { getStockLevel } from "../lib/filemaker";
 const router = Router();
 
 router.get("/:pcode", requireAuth, async (req, res): Promise<void> => {
-  const pcode = req.params.pcode;
+  const pcode = String(req.params.pcode);
   try {
     const stock = await getStockLevel(pcode);
     if (!stock) {

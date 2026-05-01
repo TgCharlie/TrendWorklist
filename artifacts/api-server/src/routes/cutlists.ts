@@ -20,7 +20,7 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/:cutlistId", requireAuth, async (req, res): Promise<void> => {
-  const cutlistId = req.params.cutlistId;
+  const cutlistId = String(req.params.cutlistId);
   try {
     const cutlist = await findCutlistById(cutlistId);
     if (!cutlist) {

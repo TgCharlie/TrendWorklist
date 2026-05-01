@@ -310,11 +310,6 @@ paths:
           required: false
           schema:
             type: string
-        - name: favouritesOnly
-          in: query
-          required: false
-          schema:
-            type: boolean
       responses:
         "200":
           description: List of materials
@@ -445,7 +440,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [draft, active, complete]
+            enum: [draft, submitted, completed]
       responses:
         "200":
           description: List of worklists
@@ -797,42 +792,43 @@ components:
 
     Project:
       type: object
+      description: Project record from FileMaker (may include additional FileMaker field data)
       properties:
-        projectId:
+        id:
           type: string
-        projectNumber:
+          description: FileMaker ProjectID value
+        recordId:
           type: string
+          description: FileMaker internal record ID
         address:
-          type: string
-        date:
+          type: ["string", "null"]
+        clientName:
           type: ["string", "null"]
         status:
           type: ["string", "null"]
       required:
-        - projectId
-        - projectNumber
-        - address
+        - id
+      additionalProperties: true
 
     Cutlist:
       type: object
+      description: Cutlist record from FileMaker (may include additional FileMaker field data)
       properties:
-        cutlistId:
+        id:
           type: string
-        pid:
+          description: FileMaker CutlistID value
+        recordId:
           type: string
-        item:
-          type: string
-        lister:
-          type: ["string", "null"]
-        dateListed:
-          type: ["string", "null"]
+          description: FileMaker internal record ID
         projectId:
-          type: string
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        status:
+          type: ["string", "null"]
       required:
-        - cutlistId
-        - pid
-        - item
-        - projectId
+        - id
+      additionalProperties: true
 
     StockLevel:
       type: object

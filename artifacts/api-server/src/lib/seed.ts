@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { db, usersTable, folderSequencesTable, pool } from "@workspace/db";
+import { db, usersTable, folderSequencesTable, worklistSequenceTable, pool } from "@workspace/db";
 import { count } from "drizzle-orm";
 import { logger } from "./logger";
 
@@ -33,6 +33,7 @@ export async function seedDatabase(): Promise<void> {
     logger.info("Seeded default admin user (username: admin, pin: 0000)");
   }
 
+  // Ensure folder sequence rows exist for B and C machines
   const [{ count: folderCount }] = await db
     .select({ count: count() })
     .from(folderSequencesTable);
@@ -43,5 +44,15 @@ export async function seedDatabase(): Promise<void> {
       { machineType: "C", lastNumber: 0 },
     ]);
     logger.info("Seeded folder sequences for machines B and C");
+  }
+
+  // Ensure worklist sequence row exists (pre-create so UPDATE ... RETURNING is safe)
+  const [{ count: seqCount }] = await db
+    .select({ count: count() })
+    .from(worklistSequenceTable);
+
+  if (Number(seqCount) === 0) {
+    await db.insert(worklistSequenceTable).values({ lastNumber: 0 });
+    logger.info("Seeded worklist sequence (starting at 1)");
   }
 }

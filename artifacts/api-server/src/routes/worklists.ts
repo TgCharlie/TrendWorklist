@@ -6,7 +6,7 @@ import {
   worklistSequenceTable,
   folderSequencesTable,
 } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
 import { getSetting } from "../lib/settings";
 
@@ -78,42 +78,28 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
   const createdBy = req.session.userId ?? null;
 
   const [worklist] = await db.transaction(async (tx) => {
-    // Atomically assign worklist number
-    const seqRows = await tx.select().from(worklistSequenceTable).limit(1);
-    let worklistNumber: string;
-    if (seqRows.length === 0) {
-      const startStr = await getSetting("worklist_start_number");
-      const start = Math.max(1, parseInt(startStr, 10) || 1);
-      await tx.insert(worklistSequenceTable).values({ lastNumber: start });
-      worklistNumber = `W${String(start).padStart(6, "0")}`;
-    } else {
-      const current = seqRows[0];
-      const next = current.lastNumber + 1;
-      await tx
-        .update(worklistSequenceTable)
-        .set({ lastNumber: next })
-        .where(eq(worklistSequenceTable.id, current.id));
-      worklistNumber = `W${String(next).padStart(6, "0")}`;
-    }
+    // Atomically increment worklist sequence (single UPDATE statement — no read needed)
+    const [seqRow] = await tx
+      .update(worklistSequenceTable)
+      .set({ lastNumber: sql`${worklistSequenceTable.lastNumber} + 1` })
+      .returning({ lastNumber: worklistSequenceTable.lastNumber });
 
-    // Atomically assign folder number
-    const folderRows = await tx
-      .select()
-      .from(folderSequencesTable)
-      .where(eq(folderSequencesTable.machineType, machineType))
-      .limit(1);
-    let folderNumber: number;
-    if (folderRows.length === 0) {
-      await tx.insert(folderSequencesTable).values({ machineType, lastNumber: 1 });
-      folderNumber = 1;
-    } else {
-      const current = folderRows[0];
-      folderNumber = current.lastNumber + 1;
-      await tx
-        .update(folderSequencesTable)
-        .set({ lastNumber: folderNumber })
-        .where(eq(folderSequencesTable.id, current.id));
+    if (!seqRow) {
+      throw new Error("Worklist sequence row missing — database not seeded correctly");
     }
+    const worklistNumber = `W${String(seqRow.lastNumber).padStart(6, "0")}`;
+
+    // Atomically increment folder sequence (single UPDATE statement)
+    const [folderRow] = await tx
+      .update(folderSequencesTable)
+      .set({ lastNumber: sql`${folderSequencesTable.lastNumber} + 1` })
+      .where(eq(folderSequencesTable.machineType, machineType))
+      .returning({ lastNumber: folderSequencesTable.lastNumber });
+
+    if (!folderRow) {
+      throw new Error(`Folder sequence row missing for machine ${machineType}`);
+    }
+    const folderNumber = folderRow.lastNumber;
 
     // Insert worklist
     return tx

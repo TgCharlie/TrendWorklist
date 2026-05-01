@@ -9,7 +9,9 @@ import {
   useUpdateWorklist,
   getGetWorklistQueryKey,
   getListWorklistsQueryKey,
+  getListMaterialsQueryKey,
 } from "@workspace/api-client-react";
+import type { WorklistStatus } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,22 +33,17 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
+const STATUS_OPTIONS: WorklistStatus[] = ["draft", "active", "complete"];
+
 const EMPTY_ITEM = {
   pcode: "",
   displayName: "",
   quantity: 1,
   length: "" as string,
   width: "" as string,
-  thickness: "" as string,
   notes: "" as string,
   materialId: null as number | null,
 };
-
-const STATUS_OPTIONS = ["draft", "submitted", "completed"];
-
-function fmtFolderRef(machineType: string, folderNumber: number) {
-  return `${machineType}${String(folderNumber).padStart(4, "0")}`;
-}
 
 export default function WorklistDetailPage() {
   const { id } = useParams();
@@ -57,11 +54,11 @@ export default function WorklistDetailPage() {
   const [itemForm, setItemForm] = useState({ ...EMPTY_ITEM });
 
   const { data: worklist, isLoading } = useGetWorklist(numId, {
-    query: { enabled: !!numId },
+    query: { queryKey: getGetWorklistQueryKey(numId), enabled: !!numId },
   });
 
   const { data: materials = [] } = useListMaterials(undefined, {
-    query: { staleTime: 60_000 },
+    query: { queryKey: getListMaterialsQueryKey(), staleTime: 60_000 },
   });
 
   const addItemMutation = useAddWorklistItem({
@@ -98,18 +95,13 @@ export default function WorklistDetailPage() {
   });
 
   function handleMaterialSelect(materialId: string) {
-    const mat = (materials as Array<{ id: number; pcode: string; displayName: string; length: number | null; width: number | null; thickness: number | null }>).find(
-      (m) => String(m.id) === materialId
-    );
+    const mat = materials.find((m) => String(m.id) === materialId);
     if (mat) {
       setItemForm((f) => ({
         ...f,
         materialId: mat.id,
         pcode: mat.pcode,
         displayName: mat.displayName,
-        length: mat.length?.toString() ?? "",
-        width: mat.width?.toString() ?? "",
-        thickness: mat.thickness?.toString() ?? "",
       }));
     }
   }
@@ -117,7 +109,7 @@ export default function WorklistDetailPage() {
   function handleDownloadCsv() {
     if (!worklist) return;
     const a = document.createElement("a");
-    a.href = `/api/worklists/${worklist.id}/download-csv`;
+    a.href = `/api/worklists/${worklist.id}/csv`;
     a.download = `${worklist.worklistNumber}.csv`;
     document.body.appendChild(a);
     a.click();
@@ -131,18 +123,13 @@ export default function WorklistDetailPage() {
     return <div className="text-zinc-400 text-center py-16">Worklist not found</div>;
   }
 
-  const computedFolderRef = fmtFolderRef(worklist.machineType, worklist.folderNumber);
-
   const createdDate = new Date(worklist.createdAt).toLocaleDateString("en-AU", {
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
 
-  const cutlistRefs: string[] = Array.isArray(worklist.cutlistRefs)
-    ? (worklist.cutlistRefs as string[])
-    : [];
-
+  const cutlistRefs: string[] = worklist.cutlistRefs ?? [];
   const items = worklist.items ?? [];
 
   return (
@@ -157,7 +144,7 @@ export default function WorklistDetailPage() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-zinc-950 font-mono">{worklist.worklistNumber}</h1>
-            <span className="font-mono text-blue-600 text-lg font-semibold">{computedFolderRef}</span>
+            <span className="font-mono text-blue-600 text-lg font-semibold">{worklist.folderRef}</span>
             <Badge variant="outline" className="border-zinc-300 text-zinc-700">
               Rover {worklist.machineType}
             </Badge>
@@ -213,7 +200,9 @@ export default function WorklistDetailPage() {
         <div className="flex items-center gap-2 flex-shrink-0">
           <Select
             value={worklist.status}
-            onValueChange={(v) => updateStatusMutation.mutate({ id: numId, data: { status: v as "draft" | "active" | "complete" } })}
+            onValueChange={(v) =>
+              updateStatusMutation.mutate({ id: numId, data: { status: v as WorklistStatus } })
+            }
           >
             <SelectTrigger className="bg-white border-zinc-300 text-zinc-950 h-9 text-sm w-36">
               <SelectValue />
@@ -264,7 +253,6 @@ export default function WorklistDetailPage() {
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">Qty</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">L (mm)</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">W (mm)</th>
-                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">T (mm)</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Notes</th>
                 <th className="px-4 py-2.5"></th>
               </tr>
@@ -283,9 +271,6 @@ export default function WorklistDetailPage() {
                   </td>
                   <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
                     {item.width ?? "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
-                    {item.thickness ?? "—"}
                   </td>
                   <td className="px-4 py-2.5 text-zinc-500 text-xs">{item.notes}</td>
                   <td className="px-4 py-2.5">
@@ -316,7 +301,7 @@ export default function WorklistDetailPage() {
             <DialogTitle>Add Item</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {(materials as unknown[]).length > 0 && (
+            {materials.length > 0 && (
               <div className="space-y-1.5">
                 <Label className="text-zinc-700">Select from materials library</Label>
                 <Select onValueChange={handleMaterialSelect}>
@@ -324,7 +309,7 @@ export default function WorklistDetailPage() {
                     <SelectValue placeholder="Choose a material…" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-zinc-200">
-                    {(materials as Array<{ id: number; pcode: string; displayName: string }>).map((m) => (
+                    {materials.map((m) => (
                       <SelectItem key={m.id} value={String(m.id)}>
                         <span className="font-mono text-blue-600 text-xs mr-2">{m.pcode}</span>
                         {m.displayName}
@@ -364,16 +349,16 @@ export default function WorklistDetailPage() {
                 className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              {(["length", "width", "thickness"] as const).map((dim) => (
+            <div className="grid grid-cols-2 gap-3">
+              {(["length", "width"] as const).map((dim) => (
                 <div key={dim} className="space-y-1.5">
                   <Label className="text-zinc-700">
-                    {dim === "length" ? "L" : dim === "width" ? "W" : "T"} (mm)
+                    {dim === "length" ? "Length" : "Width"} (mm)
                   </Label>
                   <Input
                     value={itemForm[dim]}
                     onChange={(e) => setItemForm((f) => ({ ...f, [dim]: e.target.value }))}
-                    placeholder={dim === "length" ? "2400" : dim === "width" ? "1200" : "18"}
+                    placeholder={dim === "length" ? "2400" : "1200"}
                     className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
                   />
                 </div>
@@ -405,7 +390,6 @@ export default function WorklistDetailPage() {
                     quantity: itemForm.quantity,
                     length: itemForm.length ? Number(itemForm.length) : undefined,
                     width: itemForm.width ? Number(itemForm.width) : undefined,
-                    thickness: itemForm.thickness ? Number(itemForm.thickness) : undefined,
                     notes: itemForm.notes || undefined,
                   },
                 })

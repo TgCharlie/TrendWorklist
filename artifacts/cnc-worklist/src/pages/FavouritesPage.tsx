@@ -6,7 +6,9 @@ import {
   useToggleFavourite,
   useAddWorklistItem,
   getListMaterialsQueryKey,
+  getListWorklistsQueryKey,
 } from "@workspace/api-client-react";
+import type { Material, WorklistSummary } from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,9 +33,6 @@ interface AddState {
   materialId: number;
   pcode: string;
   displayName: string;
-  length: string;
-  width: string;
-  thickness: string;
   worklistId: string;
   quantity: number;
   notes: string;
@@ -46,17 +45,21 @@ export default function FavouritesPage() {
 
   const { data: favourites = [], isLoading } = useListMaterials(
     { favouritesOnly: true },
-    { query: { staleTime: 30_000 } }
+    { query: { queryKey: getListMaterialsQueryKey({ favouritesOnly: true }), staleTime: 30_000 } }
   );
 
   const { data: worklists = [] } = useListWorklists(undefined, {
-    query: { staleTime: 30_000, select: (wls) => wls.filter((w) => w.status === "draft") },
+    query: {
+      queryKey: getListWorklistsQueryKey(),
+      staleTime: 30_000,
+      select: (wls: WorklistSummary[]) => wls.filter((w) => w.status === "draft"),
+    },
   });
 
   const toggleFavouriteMutation = useToggleFavourite({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListMaterialsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListMaterialsQueryKey({ favouritesOnly: true }) });
         toast({ title: "Removed from favourites" });
       },
       onError: (err) => {
@@ -77,15 +80,12 @@ export default function FavouritesPage() {
     },
   });
 
-  function openAddDialog(m: { id: number; pcode: string; displayName: string; length: number | null; width: number | null; thickness: number | null }) {
-    const draftWorklists = worklists as Array<{ id: number }>;
+  function openAddDialog(m: Material) {
+    const draftWorklists = worklists as WorklistSummary[];
     setAddState({
       materialId: m.id,
       pcode: m.pcode,
       displayName: m.displayName,
-      length: m.length?.toString() ?? "",
-      width: m.width?.toString() ?? "",
-      thickness: m.thickness?.toString() ?? "",
       worklistId: draftWorklists[0]?.id.toString() ?? "",
       quantity: 1,
       notes: "",
@@ -101,31 +101,13 @@ export default function FavouritesPage() {
         pcode: addState.pcode,
         displayName: addState.displayName,
         quantity: addState.quantity,
-        length: addState.length ? Number(addState.length) : undefined,
-        width: addState.width ? Number(addState.width) : undefined,
-        thickness: addState.thickness ? Number(addState.thickness) : undefined,
         notes: addState.notes || undefined,
       },
     });
   }
 
-  const mats = favourites as Array<{
-    id: number;
-    pcode: string;
-    displayName: string;
-    length: number | null;
-    width: number | null;
-    thickness: number | null;
-    notes: string | null;
-  }>;
-
-  const draftWorklists = worklists as Array<{
-    id: number;
-    worklistNumber: string;
-    projectId: string | null;
-    projectAddress: string | null;
-    status: string;
-  }>;
+  const mats = favourites as Material[];
+  const draftWorklists = worklists as WorklistSummary[];
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -153,9 +135,6 @@ export default function FavouritesPage() {
               <tr className="bg-zinc-50">
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">PCODE</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Description</th>
-                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">L</th>
-                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">W</th>
-                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">T</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Notes</th>
                 <th className="px-4 py-2.5 text-right text-zinc-500 font-medium">Actions</th>
               </tr>
@@ -169,10 +148,7 @@ export default function FavouritesPage() {
                 >
                   <td className="px-4 py-2.5 font-mono text-blue-600 text-xs font-bold">{m.pcode}</td>
                   <td className="px-4 py-2.5 text-zinc-800">{m.displayName}</td>
-                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.length ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.width ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.thickness ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-zinc-500 text-xs">{m.notes}</td>
+                  <td className="px-4 py-2.5 text-zinc-500 text-xs">{m.notes ?? ""}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2 justify-end">
                       <button
@@ -233,9 +209,6 @@ export default function FavouritesPage() {
                         <SelectItem key={wl.id} value={wl.id.toString()}>
                           <span className="font-mono text-xs mr-2">{wl.worklistNumber}</span>
                           {wl.projectId && <span className="text-zinc-500">— {wl.projectId}</span>}
-                          {wl.projectAddress && !wl.projectId && (
-                            <span className="text-zinc-500 truncate">— {wl.projectAddress}</span>
-                          )}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -251,21 +224,6 @@ export default function FavouritesPage() {
                   onChange={(e) => setAddState((s) => s ? { ...s, quantity: parseInt(e.target.value) || 1 } : s)}
                   className="bg-white border-zinc-300 text-zinc-950 max-w-24"
                 />
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {(["length", "width", "thickness"] as const).map((dim) => (
-                  <div key={dim} className="space-y-1.5">
-                    <Label className="text-zinc-700">
-                      {dim === "length" ? "L" : dim === "width" ? "W" : "T"} (mm)
-                    </Label>
-                    <Input
-                      type="number"
-                      value={addState[dim]}
-                      onChange={(e) => setAddState((s) => s ? { ...s, [dim]: e.target.value } : s)}
-                      className="bg-white border-zinc-300 text-zinc-950 font-mono text-sm"
-                    />
-                  </div>
-                ))}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-zinc-700">Notes (optional)</Label>

@@ -6,8 +6,11 @@ import {
   useCreateWorklist,
   useListProjects,
   useListCutlists,
+  getListWorklistsQueryKey,
+  getListProjectsQueryKey,
+  getListCutlistsQueryKey,
 } from "@workspace/api-client-react";
-import type { Project, Cutlist } from "@workspace/api-client-react";
+import type { Project, Cutlist, WorklistSummary } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -32,8 +35,8 @@ import { useQueryClient } from "@tanstack/react-query";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-zinc-100 text-zinc-700 border border-zinc-200",
-  submitted: "bg-blue-50 text-blue-700 border border-blue-200",
-  completed: "bg-green-50 text-green-700 border border-green-200",
+  active: "bg-blue-50 text-blue-700 border border-blue-200",
+  complete: "bg-green-50 text-green-700 border border-green-200",
 };
 
 type Step = "project" | "cutlists" | "machine";
@@ -54,9 +57,6 @@ const DEFAULT_STATE: CreateState = {
   machineType: "B",
 };
 
-function folderRef(machineType: string, folderNumber: number) {
-  return `${machineType}${String(folderNumber).padStart(4, "0")}`;
-}
 
 function ProjectStep({
   state,
@@ -67,10 +67,10 @@ function ProjectStep({
   setState: (s: CreateState) => void;
   onNext: () => void;
 }) {
-  const { data: projects, isLoading, isError } = useListProjects(
-    state.projectSearch ? { search: state.projectSearch } : undefined,
-    { query: { retry: false, staleTime: 10_000 } }
-  );
+  const params = state.projectSearch ? { search: state.projectSearch } : undefined;
+  const { data: projects, isLoading, isError } = useListProjects(params, {
+    query: { queryKey: getListProjectsQueryKey(params), retry: false, staleTime: 10_000 },
+  });
 
   const fmUnavailable = isError && !projects;
 
@@ -205,10 +205,10 @@ function CutlistStep({
   onNext: () => void;
 }) {
   const projectId = state.selectedProject?.projectId ?? "";
-  const { data: cutlists, isLoading, isError } = useListCutlists(
-    projectId ? { projectId } : undefined,
-    { query: { retry: false, staleTime: 10_000 } }
-  );
+  const cutlistParams = projectId ? { projectId } : undefined;
+  const { data: cutlists, isLoading, isError } = useListCutlists(cutlistParams, {
+    query: { queryKey: getListCutlistsQueryKey(cutlistParams), retry: false, staleTime: 10_000 },
+  });
 
   function toggleCutlist(cutlistId: string) {
     const next = new Set(state.selectedCutlistIds);
@@ -394,12 +394,14 @@ export default function WorklistsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createState, setCreateState] = useState<CreateState>({ ...DEFAULT_STATE });
 
-  const { data: worklists = [], isLoading } = useListWorklists();
+  const { data: worklists = [], isLoading } = useListWorklists(undefined, {
+    query: { queryKey: getListWorklistsQueryKey() },
+  });
 
   const deleteMutation = useDeleteWorklist({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/worklists"] });
+        queryClient.invalidateQueries({ queryKey: getListWorklistsQueryKey() });
         toast({ title: "Worklist deleted" });
       },
     },
@@ -408,7 +410,7 @@ export default function WorklistsPage() {
   const createMutation = useCreateWorklist({
     mutation: {
       onSuccess: (newWorklist) => {
-        queryClient.invalidateQueries({ queryKey: ["/api/worklists"] });
+        queryClient.invalidateQueries({ queryKey: getListWorklistsQueryKey() });
         setShowCreate(false);
         setCreateState({ ...DEFAULT_STATE });
         toast({ title: `Created ${newWorklist.worklistNumber}` });
@@ -440,7 +442,7 @@ export default function WorklistsPage() {
 
   function handleDownloadCsv(wl: { id: number; worklistNumber: string }) {
     const a = document.createElement("a");
-    a.href = `/api/worklists/${wl.id}/download-csv`;
+    a.href = `/api/worklists/${wl.id}/csv`;
     a.download = `${wl.worklistNumber}.csv`;
     document.body.appendChild(a);
     a.click();
@@ -475,16 +477,7 @@ export default function WorklistsPage() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {(worklists as Array<{
-            id: number;
-            worklistNumber: string;
-            projectId: string | null;
-            projectAddress: string | null;
-            cutlistRefs: string[];
-            machineType: "B" | "C";
-            folderNumber: number;
-            status: string;
-          }>).map((w) => (
+          {(worklists as WorklistSummary[]).map((w) => (
             <Card
               key={w.id}
               className="bg-white border-zinc-200 px-5 py-4 hover:border-zinc-300 transition-colors"
@@ -493,27 +486,14 @@ export default function WorklistsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="font-mono font-bold text-zinc-950 text-sm">{w.worklistNumber}</span>
-                    <span className="font-mono text-blue-600 text-sm font-semibold">
-                      {folderRef(w.machineType, w.folderNumber)}
-                    </span>
+                    <span className="font-mono text-blue-600 text-sm font-semibold">{w.folderRef}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[w.status] ?? STATUS_COLORS.draft}`}>
                       {w.status}
                     </span>
+                    <span className="text-zinc-400 text-xs">{w.itemCount} {w.itemCount === 1 ? "item" : "items"}</span>
                   </div>
                   {w.projectAddress && (
                     <p className="text-zinc-500 text-sm mt-0.5 truncate">{w.projectAddress}</p>
-                  )}
-                  {Array.isArray(w.cutlistRefs) && w.cutlistRefs.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {w.cutlistRefs.map((ref: string) => (
-                        <span
-                          key={ref}
-                          className="bg-zinc-100 text-zinc-700 border border-zinc-200 rounded text-xs px-1.5 py-0.5 font-mono"
-                        >
-                          {ref}
-                        </span>
-                      ))}
-                    </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/hooks/useApi";
-import { useGetMaterialStock } from "@workspace/api-client-react";
+import { useGetMaterialStock, getGetMaterialStockQueryKey } from "@workspace/api-client-react";
+import type { StockLevel } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,17 +19,19 @@ import { useToast } from "@/hooks/use-toast";
 
 function StockBadge({ materialId }: { materialId: number }) {
   const { data, isLoading, isError } = useGetMaterialStock(materialId, {
-    query: { retry: false, staleTime: 60_000 },
+    query: { queryKey: getGetMaterialStockQueryKey(materialId), retry: false, staleTime: 60_000 },
   });
+
+  const stock = data as StockLevel | undefined;
 
   if (isLoading) {
     return <span className="text-zinc-300 text-xs animate-pulse">…</span>;
   }
-  if (isError || data == null || (data as { quantity?: number }).quantity == null) {
+  if (isError || stock == null) {
     return <span className="text-zinc-300 text-xs">—</span>;
   }
-  const qty = (data as { quantity: number }).quantity;
-  const unit = (data as { unit?: string | null }).unit ?? "";
+  const qty = stock.quantity;
+  const unit = stock.unit ?? "";
   const color =
     qty <= 0
       ? "text-red-600 bg-red-50 border-red-200"

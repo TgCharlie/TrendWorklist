@@ -7,51 +7,10 @@ import {
   folderSequencesTable,
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../lib/auth-middleware";
+import { requireAuth } from "../lib/auth-middleware";
 import { getSetting } from "../lib/settings";
 
 const router = Router();
-
-async function getNextWorklistNumber(): Promise<{ number: number; formatted: string }> {
-  return db.transaction(async (tx) => {
-    const rows = await tx.select().from(worklistSequenceTable).limit(1);
-    if (rows.length === 0) {
-      const startStr = await getSetting("worklist_start_number");
-      const start = Math.max(1, parseInt(startStr, 10) || 1);
-      await tx.insert(worklistSequenceTable).values({ lastNumber: start });
-      return { number: start, formatted: `W${String(start).padStart(6, "0")}` };
-    }
-    const current = rows[0];
-    const next = current.lastNumber + 1;
-    await tx
-      .update(worklistSequenceTable)
-      .set({ lastNumber: next })
-      .where(eq(worklistSequenceTable.id, current.id));
-    return { number: next, formatted: `W${String(next).padStart(6, "0")}` };
-  });
-}
-
-async function getNextFolderNumber(machineType: "B" | "C"): Promise<{ number: number; formatted: string }> {
-  return db.transaction(async (tx) => {
-    const rows = await tx
-      .select()
-      .from(folderSequencesTable)
-      .where(eq(folderSequencesTable.machineType, machineType))
-      .limit(1);
-
-    if (rows.length === 0) {
-      await tx.insert(folderSequencesTable).values({ machineType, lastNumber: 1 });
-      return { number: 1, formatted: `${machineType}0001` };
-    }
-    const current = rows[0];
-    const next = current.lastNumber + 1;
-    await tx
-      .update(folderSequencesTable)
-      .set({ lastNumber: next })
-      .where(eq(folderSequencesTable.id, current.id));
-    return { number: next, formatted: `${machineType}${String(next).padStart(4, "0")}` };
-  });
-}
 
 router.get("/", requireAuth, async (req, res): Promise<void> => {
   const worklists = await db
@@ -68,7 +27,21 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
     acc[w.status] = (acc[w.status] ?? 0) + 1;
     return acc;
   }, {});
-  res.json({ total, byStatus });
+
+  const seqRows = await db.select().from(worklistSequenceTable).limit(1);
+  let nextNumber = 1;
+  if (seqRows.length > 0) {
+    nextNumber = seqRows[0].lastNumber + 1;
+  } else {
+    const startStr = await getSetting("worklist_start_number");
+    nextNumber = Math.max(1, parseInt(startStr, 10) || 1);
+  }
+
+  res.json({
+    total,
+    byStatus,
+    nextWorklistNumber: `W${String(nextNumber).padStart(6, "0")}`,
+  });
 });
 
 router.get("/:id", requireAuth, async (req, res): Promise<void> => {
@@ -102,22 +75,61 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { formatted: worklistNumber } = await getNextWorklistNumber();
-  const { number: folderNumber } = await getNextFolderNumber(machineType);
+  const createdBy = req.session.userId ?? null;
 
-  const [worklist] = await db
-    .insert(worklistsTable)
-    .values({
-      worklistNumber,
-      projectId: projectId ?? null,
-      projectAddress: projectAddress ?? null,
-      cutlistRefs: cutlistRefs ?? [],
-      machineType,
-      folderNumber,
-      status: "draft",
-      createdBy: req.session.userId ?? null,
-    })
-    .returning();
+  const [worklist] = await db.transaction(async (tx) => {
+    // Atomically assign worklist number
+    const seqRows = await tx.select().from(worklistSequenceTable).limit(1);
+    let worklistNumber: string;
+    if (seqRows.length === 0) {
+      const startStr = await getSetting("worklist_start_number");
+      const start = Math.max(1, parseInt(startStr, 10) || 1);
+      await tx.insert(worklistSequenceTable).values({ lastNumber: start });
+      worklistNumber = `W${String(start).padStart(6, "0")}`;
+    } else {
+      const current = seqRows[0];
+      const next = current.lastNumber + 1;
+      await tx
+        .update(worklistSequenceTable)
+        .set({ lastNumber: next })
+        .where(eq(worklistSequenceTable.id, current.id));
+      worklistNumber = `W${String(next).padStart(6, "0")}`;
+    }
+
+    // Atomically assign folder number
+    const folderRows = await tx
+      .select()
+      .from(folderSequencesTable)
+      .where(eq(folderSequencesTable.machineType, machineType))
+      .limit(1);
+    let folderNumber: number;
+    if (folderRows.length === 0) {
+      await tx.insert(folderSequencesTable).values({ machineType, lastNumber: 1 });
+      folderNumber = 1;
+    } else {
+      const current = folderRows[0];
+      folderNumber = current.lastNumber + 1;
+      await tx
+        .update(folderSequencesTable)
+        .set({ lastNumber: folderNumber })
+        .where(eq(folderSequencesTable.id, current.id));
+    }
+
+    // Insert worklist
+    return tx
+      .insert(worklistsTable)
+      .values({
+        worklistNumber,
+        projectId: projectId || null,
+        projectAddress: projectAddress || null,
+        cutlistRefs: cutlistRefs ?? [],
+        machineType,
+        folderNumber,
+        status: "draft",
+        createdBy,
+      })
+      .returning();
+  });
 
   res.status(201).json(worklist);
 });
@@ -159,18 +171,18 @@ router.delete("/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Worklist not found" });
     return;
   }
-  res.json({ ok: true });
+  res.status(204).end();
 });
 
 router.post("/:id/items", requireAuth, async (req, res): Promise<void> => {
   const worklistId = Number(req.params.id);
   const { materialId, pcode, displayName, quantity, length, width, notes } = req.body as {
-    materialId?: number;
+    materialId?: number | null;
     pcode?: string;
     displayName?: string;
     quantity?: number;
-    length?: string;
-    width?: string;
+    length?: number | string | null;
+    width?: number | string | null;
     notes?: string;
   };
 
@@ -182,8 +194,8 @@ router.post("/:id/items", requireAuth, async (req, res): Promise<void> => {
       pcode: pcode || null,
       displayName: displayName || null,
       quantity: quantity ?? 1,
-      length: length || null,
-      width: width || null,
+      length: length !== undefined && length !== "" && length !== null ? String(length) : null,
+      width: width !== undefined && width !== "" && width !== null ? String(width) : null,
       notes: notes || null,
     })
     .returning();
@@ -197,19 +209,21 @@ router.put("/:id/items/:itemId", requireAuth, async (req, res): Promise<void> =>
     pcode?: string;
     displayName?: string;
     quantity?: number;
-    length?: string | null;
-    width?: string | null;
-    notes?: string;
+    length?: number | string | null;
+    width?: number | string | null;
+    notes?: string | null;
   };
 
   const updates: Partial<typeof worklistItemsTable.$inferInsert> = {};
   if (materialId !== undefined) updates.materialId = materialId;
-  if (pcode !== undefined) updates.pcode = pcode;
-  if (displayName !== undefined) updates.displayName = displayName;
+  if (pcode !== undefined) updates.pcode = pcode || null;
+  if (displayName !== undefined) updates.displayName = displayName || null;
   if (quantity !== undefined) updates.quantity = quantity;
-  if (length !== undefined) updates.length = length || null;
-  if (width !== undefined) updates.width = width || null;
-  if (notes !== undefined) updates.notes = notes;
+  if (length !== undefined)
+    updates.length = length !== "" && length !== null ? String(length) : null;
+  if (width !== undefined)
+    updates.width = width !== "" && width !== null ? String(width) : null;
+  if (notes !== undefined) updates.notes = notes || null;
 
   const [item] = await db
     .update(worklistItemsTable)
@@ -233,7 +247,7 @@ router.delete("/:id/items/:itemId", requireAuth, async (req, res): Promise<void>
     res.status(404).json({ error: "Item not found" });
     return;
   }
-  res.json({ ok: true });
+  res.status(204).end();
 });
 
 router.get("/:id/csv", requireAuth, async (req, res): Promise<void> => {

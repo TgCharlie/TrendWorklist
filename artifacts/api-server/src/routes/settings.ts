@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireAdmin } from "../lib/auth-middleware";
 import { getAllSettings, setSettings } from "../lib/settings";
 import { db, worklistSequenceTable } from "@workspace/db";
-import { count } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -15,20 +15,24 @@ const ALLOWED_KEYS = [
   "worklist_start_number",
 ];
 
+function sanitizeSettings(settings: Record<string, string>): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const key of ALLOWED_KEYS) {
+    result[key] = settings[key] ?? "";
+  }
+  if (result.filemaker_password) {
+    result.filemaker_password = "***";
+  }
+  return result;
+}
+
 router.get("/", requireAdmin, async (req, res): Promise<void> => {
   const settings = await getAllSettings();
-  const filtered: Record<string, string> = {};
-  for (const key of ALLOWED_KEYS) {
-    filtered[key] = settings[key] ?? "";
-  }
-  if (filtered.filemaker_password) {
-    filtered.filemaker_password = "***";
-  }
-  res.json(filtered);
+  res.json(sanitizeSettings(settings));
 });
 
 router.put("/", requireAdmin, async (req, res): Promise<void> => {
-  const body = req.body as Record<string, string>;
+  const body = req.body as Record<string, string | number>;
   const updates: Record<string, string> = {};
 
   for (const key of ALLOWED_KEYS) {
@@ -38,24 +42,23 @@ router.put("/", requireAdmin, async (req, res): Promise<void> => {
   }
 
   if (updates.worklist_start_number !== undefined) {
-    const [{ count: seqCount }] = await db
-      .select({ count: count() })
-      .from(worklistSequenceTable);
-    if (Number(seqCount) > 0) {
-      delete updates.worklist_start_number;
+    const startNumber = Math.max(1, parseInt(updates.worklist_start_number, 10) || 1);
+    const seqRows = await db.select().from(worklistSequenceTable).limit(1);
+    if (seqRows.length === 0) {
+      // No sequence row yet — setting will be used on first worklist creation
+    } else {
+      // Override the sequence counter to the new start value (minus 1 so next will be startNumber)
+      await db
+        .update(worklistSequenceTable)
+        .set({ lastNumber: startNumber - 1 })
+        .where(eq(worklistSequenceTable.id, seqRows[0].id));
     }
+    updates.worklist_start_number = String(startNumber);
   }
 
   await setSettings(updates);
   const settings = await getAllSettings();
-  const result: Record<string, string> = {};
-  for (const key of ALLOWED_KEYS) {
-    result[key] = settings[key] ?? "";
-  }
-  if (result.filemaker_password) {
-    result.filemaker_password = "***";
-  }
-  res.json(result);
+  res.json(sanitizeSettings(settings));
 });
 
 export default router;

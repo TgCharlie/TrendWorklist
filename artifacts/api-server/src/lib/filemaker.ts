@@ -157,6 +157,23 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
   });
 }
 
+export async function findCutlistById(cutlistId: string): Promise<Record<string, unknown> | null> {
+  return withToken(async (config, token) => {
+    const layout = "Cutlists";
+    const records = await findRecords(config, token, layout, [{ CutlistID: cutlistId }], 1);
+    if (!records.length) return null;
+    const r = records[0];
+    return {
+      id: r.fieldData["CutlistID"] as string,
+      recordId: r.recordId,
+      projectId: r.fieldData["ProjectID"] as string,
+      description: r.fieldData["Description"] as string,
+      status: r.fieldData["Status"] as string,
+      ...r.fieldData,
+    };
+  });
+}
+
 // StockBook layout columns: PCODE, Description, QtyOnHand, Unit
 export async function getStockLevel(pcode: string): Promise<Record<string, unknown> | null> {
   return withToken(async (config, token) => {

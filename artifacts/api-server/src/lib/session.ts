@@ -4,7 +4,14 @@ import { pool } from "@workspace/db";
 
 const PgSession = connectPgSimple(session);
 
-const SESSION_SECRET = process.env.SESSION_SECRET ?? "cnc-worklist-secret-change-in-prod";
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET) {
+  console.error(
+    "FATAL: SESSION_SECRET environment variable is not set. " +
+      "Set it to a long random string before starting the server.",
+  );
+  process.exit(1);
+}
 
 export const sessionMiddleware = session({
   store: new PgSession({

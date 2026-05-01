@@ -110,7 +110,7 @@ router.delete("/:id", requireAdmin, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Material not found" });
     return;
   }
-  res.json({ ok: true });
+  res.status(204).end();
 });
 
 export default router;

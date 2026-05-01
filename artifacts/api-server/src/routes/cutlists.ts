@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../lib/auth-middleware";
-import { findCutlistsByProject } from "../lib/filemaker";
+import { findCutlistsByProject, findCutlistById } from "../lib/filemaker";
 
 const router = Router();
 
@@ -19,16 +19,10 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-router.get("/:id", requireAuth, async (req, res): Promise<void> => {
-  const cutlistId = req.params.id as string;
-  const projectId = req.query.projectId as string | undefined;
-  if (!projectId) {
-    res.status(400).json({ error: "projectId query parameter is required" });
-    return;
-  }
+router.get("/:cutlistId", requireAuth, async (req, res): Promise<void> => {
+  const cutlistId = req.params.cutlistId;
   try {
-    const cutlists = await findCutlistsByProject(projectId);
-    const cutlist = cutlists.find((c) => String(c.id) === cutlistId);
+    const cutlist = await findCutlistById(cutlistId);
     if (!cutlist) {
       res.status(404).json({ error: "Cutlist not found" });
       return;

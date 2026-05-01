@@ -56,7 +56,7 @@ router.post("/login", async (req, res): Promise<void> => {
 
 router.post("/logout", (req, res): void => {
   req.session.destroy(() => {
-    res.json({ ok: true });
+    res.json({ message: "Logged out" });
   });
 });
 

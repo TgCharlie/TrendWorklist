@@ -3,13 +3,31 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: CNC Worklist Manager API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: users
+    description: User management (admin only)
+  - name: projects
+    description: FileMaker Projects
+  - name: cutlists
+    description: FileMaker Cutlists
+  - name: stockbook
+    description: FileMaker StockBook
+  - name: materials
+    description: Internal materials database
+  - name: worklists
+    description: Worklist management
+  - name: folders
+    description: Folder sequence management
+  - name: settings
+    description: Application settings (admin only)
 paths:
   /healthz:
     get:
@@ -24,6 +42,678 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with username and PIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout current user
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (admin only)
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a new user (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}:
+    put:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: User deleted
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List projects from FileMaker
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+
+  /projects/{projectId}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get a single project from FileMaker
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /cutlists:
+    get:
+      operationId: listCutlists
+      tags: [cutlists]
+      summary: List cutlists from FileMaker
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of cutlists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Cutlist"
+
+  /cutlists/{cutlistId}:
+    get:
+      operationId: getCutlist
+      tags: [cutlists]
+      summary: Get a single cutlist from FileMaker
+      parameters:
+        - name: cutlistId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cutlist details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cutlist"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /stockbook/{pcode}:
+    get:
+      operationId: getStockLevel
+      tags: [stockbook]
+      summary: Get stock level for a PCODE from FileMaker
+      parameters:
+        - name: pcode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stock level info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockLevel"
+        "404":
+          description: PCODE not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /materials:
+    get:
+      operationId: listMaterials
+      tags: [materials]
+      summary: List internal materials
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: favouritesOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of materials
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Material"
+    post:
+      operationId: createMaterial
+      tags: [materials]
+      summary: Create a new material
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMaterialBody"
+      responses:
+        "201":
+          description: Material created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Material"
+
+  /materials/{id}:
+    get:
+      operationId: getMaterial
+      tags: [materials]
+      summary: Get a material by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Material
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Material"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateMaterial
+      tags: [materials]
+      summary: Update a material
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMaterialBody"
+      responses:
+        "200":
+          description: Material updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Material"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteMaterial
+      tags: [materials]
+      summary: Delete a material
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /materials/{id}/stock:
+    get:
+      operationId: getMaterialStock
+      tags: [materials]
+      summary: Get live stock level for a material via its PCODE
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Stock level
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockLevel"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /materials/{id}/favourite:
+    post:
+      operationId: toggleFavourite
+      tags: [materials]
+      summary: Toggle favourite status for a material (per user)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Favourite toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FavouriteResponse"
+
+  /worklists:
+    get:
+      operationId: listWorklists
+      tags: [worklists]
+      summary: List all worklists
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, active, complete]
+      responses:
+        "200":
+          description: List of worklists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorklistSummary"
+    post:
+      operationId: createWorklist
+      tags: [worklists]
+      summary: Create a new worklist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorklistBody"
+      responses:
+        "201":
+          description: Worklist created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Worklist"
+
+  /worklists/stats:
+    get:
+      operationId: getWorklistStats
+      tags: [worklists]
+      summary: Get worklist summary stats
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorklistStats"
+
+  /worklists/{id}:
+    get:
+      operationId: getWorklist
+      tags: [worklists]
+      summary: Get a worklist by ID (includes items)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Worklist with items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Worklist"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateWorklist
+      tags: [worklists]
+      summary: Update a worklist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWorklistBody"
+      responses:
+        "200":
+          description: Updated worklist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Worklist"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteWorklist
+      tags: [worklists]
+      summary: Delete a worklist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /worklists/{id}/items:
+    post:
+      operationId: addWorklistItem
+      tags: [worklists]
+      summary: Add an item to a worklist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorklistItemBody"
+      responses:
+        "201":
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorklistItem"
+
+  /worklists/{id}/items/{itemId}:
+    put:
+      operationId: updateWorklistItem
+      tags: [worklists]
+      summary: Update a worklist item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWorklistItemBody"
+      responses:
+        "200":
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorklistItem"
+    delete:
+      operationId: deleteWorklistItem
+      tags: [worklists]
+      summary: Remove an item from a worklist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /worklists/{id}/csv:
+    get:
+      operationId: downloadWorklistCsv
+      tags: [worklists]
+      summary: Download worklist as CSV
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /folders/next:
+    get:
+      operationId: getNextFolder
+      tags: [folders]
+      summary: Get next sequential folder reference for a machine type
+      parameters:
+        - name: machine
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [B, C]
+      responses:
+        "200":
+          description: Next folder reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderRef"
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get application settings (admin only)
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+    put:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update application settings (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsBody"
+      responses:
+        "200":
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +724,476 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    LoginBody:
+      type: object
+      properties:
+        username:
+          type: string
+        pin:
+          type: string
+      required:
+        - username
+        - pin
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        role:
+          type: string
+          enum: [admin, operator]
+      required:
+        - id
+        - username
+        - role
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        role:
+          type: string
+          enum: [admin, operator]
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - username
+        - role
+        - active
+        - createdAt
+
+    CreateUserBody:
+      type: object
+      properties:
+        username:
+          type: string
+        pin:
+          type: string
+        role:
+          type: string
+          enum: [admin, operator]
+      required:
+        - username
+        - pin
+        - role
+
+    UpdateUserBody:
+      type: object
+      properties:
+        pin:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [admin, operator]
+        active:
+          type: boolean
+
+    Project:
+      type: object
+      properties:
+        projectId:
+          type: string
+        projectNumber:
+          type: string
+        address:
+          type: string
+        date:
+          type: ["string", "null"]
+        status:
+          type: ["string", "null"]
+      required:
+        - projectId
+        - projectNumber
+        - address
+
+    Cutlist:
+      type: object
+      properties:
+        cutlistId:
+          type: string
+        pid:
+          type: string
+        item:
+          type: string
+        lister:
+          type: ["string", "null"]
+        dateListed:
+          type: ["string", "null"]
+        projectId:
+          type: string
+      required:
+        - cutlistId
+        - pid
+        - item
+        - projectId
+
+    StockLevel:
+      type: object
+      properties:
+        pcode:
+          type: string
+        description:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+      required:
+        - pcode
+        - description
+        - quantity
+
+    Material:
+      type: object
+      properties:
+        id:
+          type: integer
+        pcode:
+          type: string
+        displayName:
+          type: string
+        notes:
+          type: ["string", "null"]
+        isFavourite:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - pcode
+        - displayName
+        - isFavourite
+        - createdAt
+
+    CreateMaterialBody:
+      type: object
+      properties:
+        pcode:
+          type: string
+        displayName:
+          type: string
+        notes:
+          type: ["string", "null"]
+      required:
+        - pcode
+        - displayName
+
+    UpdateMaterialBody:
+      type: object
+      properties:
+        pcode:
+          type: string
+        displayName:
+          type: string
+        notes:
+          type: ["string", "null"]
+
+    FavouriteResponse:
+      type: object
+      properties:
+        isFavourite:
+          type: boolean
+        materialId:
+          type: integer
+      required:
+        - isFavourite
+        - materialId
+
+    WorklistSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        worklistNumber:
+          type: string
+        projectId:
+          type: string
+        projectNumber:
+          type: string
+        projectAddress:
+          type: string
+        machineType:
+          type: string
+          enum: [B, C]
+        folderNumber:
+          type: integer
+        folderRef:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, complete]
+        itemCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        createdByUsername:
+          type: ["string", "null"]
+      required:
+        - id
+        - worklistNumber
+        - projectId
+        - projectNumber
+        - projectAddress
+        - machineType
+        - folderNumber
+        - folderRef
+        - status
+        - itemCount
+        - createdAt
+
+    Worklist:
+      type: object
+      properties:
+        id:
+          type: integer
+        worklistNumber:
+          type: string
+        projectId:
+          type: string
+        projectNumber:
+          type: string
+        projectAddress:
+          type: string
+        cutlistRefs:
+          type: array
+          items:
+            type: string
+        machineType:
+          type: string
+          enum: [B, C]
+        folderNumber:
+          type: integer
+        folderRef:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, complete]
+        createdAt:
+          type: string
+          format: date-time
+        createdByUsername:
+          type: ["string", "null"]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorklistItem"
+      required:
+        - id
+        - worklistNumber
+        - projectId
+        - projectNumber
+        - projectAddress
+        - cutlistRefs
+        - machineType
+        - folderNumber
+        - folderRef
+        - status
+        - createdAt
+        - items
+
+    CreateWorklistBody:
+      type: object
+      properties:
+        projectId:
+          type: string
+        projectNumber:
+          type: string
+        projectAddress:
+          type: string
+        cutlistRefs:
+          type: array
+          items:
+            type: string
+        machineType:
+          type: string
+          enum: [B, C]
+      required:
+        - projectId
+        - projectNumber
+        - projectAddress
+        - cutlistRefs
+        - machineType
+
+    UpdateWorklistBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [draft, active, complete]
+        cutlistRefs:
+          type: array
+          items:
+            type: string
+
+    WorklistItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        worklistId:
+          type: integer
+        materialId:
+          type: ["integer", "null"]
+        pcode:
+          type: string
+        displayName:
+          type: string
+        quantity:
+          type: integer
+        length:
+          type: ["integer", "null"]
+        width:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        sortOrder:
+          type: integer
+      required:
+        - id
+        - worklistId
+        - pcode
+        - displayName
+        - quantity
+        - sortOrder
+
+    CreateWorklistItemBody:
+      type: object
+      properties:
+        materialId:
+          type: ["integer", "null"]
+        pcode:
+          type: string
+        displayName:
+          type: string
+        quantity:
+          type: integer
+        length:
+          type: ["integer", "null"]
+        width:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - pcode
+        - displayName
+        - quantity
+
+    UpdateWorklistItemBody:
+      type: object
+      properties:
+        quantity:
+          type: integer
+        length:
+          type: ["integer", "null"]
+        width:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        sortOrder:
+          type: integer
+
+    WorklistStats:
+      type: object
+      properties:
+        totalWorklists:
+          type: integer
+        draftCount:
+          type: integer
+        activeCount:
+          type: integer
+        completeCount:
+          type: integer
+        totalItemsThisMonth:
+          type: integer
+        nextWorklistNumber:
+          type: string
+      required:
+        - totalWorklists
+        - draftCount
+        - activeCount
+        - completeCount
+        - totalItemsThisMonth
+        - nextWorklistNumber
+
+    FolderRef:
+      type: object
+      properties:
+        machine:
+          type: string
+        folderNumber:
+          type: integer
+        folderRef:
+          type: string
+      required:
+        - machine
+        - folderNumber
+        - folderRef
+
+    AppSettings:
+      type: object
+      properties:
+        filemakerServerUrl:
+          type: string
+        filemakerDatabase:
+          type: string
+        filemakerUsername:
+          type: string
+        csvServerPath:
+          type: string
+        worklistStartNumber:
+          type: integer
+        nextWorklistNumber:
+          type: integer
+      required:
+        - filemakerServerUrl
+        - filemakerDatabase
+        - filemakerUsername
+        - csvServerPath
+        - worklistStartNumber
+        - nextWorklistNumber
+
+    UpdateSettingsBody:
+      type: object
+      properties:
+        filemakerServerUrl:
+          type: string
+        filemakerDatabase:
+          type: string
+        filemakerUsername:
+          type: string
+        filemakerPassword:
+          type: string
+        csvServerPath:
+          type: string
+        worklistStartNumber:
+          type: integer

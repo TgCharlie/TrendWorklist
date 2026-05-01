@@ -157,21 +157,21 @@ export default function WorklistDetailPage() {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-start gap-4 mb-6">
-        <Link href="/" className="text-zinc-400 hover:text-white mt-1">
+        <Link href="/" className="text-zinc-500 hover:text-zinc-950 mt-1">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-white font-mono">{worklist.worklistNumber}</h1>
-            <span className="font-mono text-blue-400 text-lg">{folderRef}</span>
-            <Badge variant="outline" className="border-zinc-700 text-zinc-300">
+            <h1 className="text-2xl font-bold text-zinc-950 font-mono">{worklist.worklistNumber}</h1>
+            <span className="font-mono text-blue-600 text-lg">{folderRef}</span>
+            <Badge variant="outline" className="border-zinc-300 text-zinc-700">
               Rover {worklist.machineType}
             </Badge>
           </div>
           {worklist.projectAddress && (
-            <p className="text-zinc-400 text-sm mt-1">{worklist.projectAddress}</p>
+            <p className="text-zinc-500 text-sm mt-1">{worklist.projectAddress}</p>
           )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -179,19 +179,19 @@ export default function WorklistDetailPage() {
             value={worklist.status}
             onValueChange={(v) => updateStatusMutation.mutate(v)}
           >
-            <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white h-9 text-sm w-36">
+            <SelectTrigger className="bg-white border-zinc-300 text-zinc-950 h-9 text-sm w-36">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-zinc-800 border-zinc-700">
+            <SelectContent className="bg-white border-zinc-200">
               {STATUS_OPTIONS.map((s) => (
-                <SelectItem key={s} value={s} className="text-white capitalize">{s}</SelectItem>
+                <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Button
             variant="outline"
             size="sm"
-            className="border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800"
+            className="border-zinc-300 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100"
             onClick={handleDownloadCsv}
           >
             <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -203,7 +203,7 @@ export default function WorklistDetailPage() {
       </div>
 
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-white font-semibold">
+        <h2 className="text-zinc-950 font-semibold">
           Items <span className="text-zinc-500 font-normal text-sm">({worklist.items.length})</span>
         </h2>
         <Button
@@ -219,20 +219,20 @@ export default function WorklistDetailPage() {
       </div>
 
       {worklist.items.length === 0 ? (
-        <Card className="bg-zinc-900 border-zinc-800 p-10 text-center">
+        <Card className="bg-white border-zinc-200 p-10 text-center">
           <p className="text-zinc-500 text-sm">No items yet. Add materials to this worklist.</p>
         </Card>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-zinc-800">
+        <div className="overflow-hidden rounded-lg border border-zinc-200">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-zinc-800/50">
-                <th className="text-left px-4 py-2.5 text-zinc-400 font-medium">PCODE</th>
-                <th className="text-left px-4 py-2.5 text-zinc-400 font-medium">Description</th>
-                <th className="text-right px-4 py-2.5 text-zinc-400 font-medium">Qty</th>
-                <th className="text-right px-4 py-2.5 text-zinc-400 font-medium">Length</th>
-                <th className="text-right px-4 py-2.5 text-zinc-400 font-medium">Width</th>
-                <th className="text-left px-4 py-2.5 text-zinc-400 font-medium">Notes</th>
+              <tr className="bg-zinc-50">
+                <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">PCODE</th>
+                <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Description</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">Qty</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">Length</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">Width</th>
+                <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Notes</th>
                 <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
@@ -240,22 +240,22 @@ export default function WorklistDetailPage() {
               {worklist.items.map((item, i) => (
                 <tr
                   key={item.id}
-                  className={`border-t border-zinc-800 ${i % 2 === 0 ? "bg-zinc-900" : "bg-zinc-900/50"}`}
+                  className={`border-t border-zinc-200 ${i % 2 === 0 ? "bg-white" : "bg-zinc-50"}`}
                 >
-                  <td className="px-4 py-2.5 font-mono text-blue-400 text-xs">{item.pcode}</td>
-                  <td className="px-4 py-2.5 text-zinc-200">{item.displayName}</td>
-                  <td className="px-4 py-2.5 text-zinc-200 text-right">{item.quantity}</td>
-                  <td className="px-4 py-2.5 text-zinc-300 text-right font-mono text-xs">
+                  <td className="px-4 py-2.5 font-mono text-blue-600 text-xs">{item.pcode}</td>
+                  <td className="px-4 py-2.5 text-zinc-800">{item.displayName}</td>
+                  <td className="px-4 py-2.5 text-zinc-800 text-right">{item.quantity}</td>
+                  <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
                     {item.length ?? "—"}
                   </td>
-                  <td className="px-4 py-2.5 text-zinc-300 text-right font-mono text-xs">
+                  <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
                     {item.width ?? "—"}
                   </td>
-                  <td className="px-4 py-2.5 text-zinc-400 text-xs">{item.notes}</td>
+                  <td className="px-4 py-2.5 text-zinc-500 text-xs">{item.notes}</td>
                   <td className="px-4 py-2.5">
                     <button
                       onClick={() => deleteItemMutation.mutate(item.id)}
-                      className="text-zinc-600 hover:text-red-400 transition-colors"
+                      className="text-zinc-400 hover:text-red-500 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -270,22 +270,22 @@ export default function WorklistDetailPage() {
       )}
 
       <Dialog open={showAddItem} onOpenChange={setShowAddItem}>
-        <DialogContent className="bg-zinc-900 border-zinc-700 text-white">
+        <DialogContent className="bg-white border-zinc-200 text-zinc-950">
           <DialogHeader>
             <DialogTitle>Add Item</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {materials.length > 0 && (
               <div className="space-y-1.5">
-                <Label className="text-zinc-300">Select from materials library</Label>
+                <Label className="text-zinc-700">Select from materials library</Label>
                 <Select onValueChange={handleMaterialSelect}>
-                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+                  <SelectTrigger className="bg-white border-zinc-300 text-zinc-950">
                     <SelectValue placeholder="Choose a material..." />
                   </SelectTrigger>
-                  <SelectContent className="bg-zinc-800 border-zinc-700">
+                  <SelectContent className="bg-white border-zinc-200">
                     {materials.map((m) => (
-                      <SelectItem key={m.id} value={String(m.id)} className="text-white">
-                        <span className="font-mono text-blue-400 text-xs mr-2">{m.pcode}</span>
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        <span className="font-mono text-blue-600 text-xs mr-2">{m.pcode}</span>
                         {m.displayName}
                       </SelectItem>
                     ))}
@@ -295,61 +295,61 @@ export default function WorklistDetailPage() {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-zinc-300">PCODE</Label>
+                <Label className="text-zinc-700">PCODE</Label>
                 <Input
                   value={itemForm.pcode}
                   onChange={(e) => setItemForm((f) => ({ ...f, pcode: e.target.value }))}
                   placeholder="e.g. MDF18"
-                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-zinc-300">Quantity</Label>
+                <Label className="text-zinc-700">Quantity</Label>
                 <Input
                   type="number"
                   min={1}
                   value={itemForm.quantity}
                   onChange={(e) => setItemForm((f) => ({ ...f, quantity: Number(e.target.value) }))}
-                  className="bg-zinc-800 border-zinc-700 text-white"
+                  className="bg-white border-zinc-300 text-zinc-950"
                 />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">Description</Label>
+                <Label className="text-zinc-700">Description</Label>
               <Input
                 value={itemForm.displayName}
                 onChange={(e) => setItemForm((f) => ({ ...f, displayName: e.target.value }))}
                 placeholder="Material description"
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-zinc-300">Length (mm)</Label>
+                <Label className="text-zinc-700">Length (mm)</Label>
                 <Input
                   value={itemForm.length}
                   onChange={(e) => setItemForm((f) => ({ ...f, length: e.target.value }))}
                   placeholder="2400"
-                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-zinc-300">Width (mm)</Label>
+                <Label className="text-zinc-700">Width (mm)</Label>
                 <Input
                   value={itemForm.width}
                   onChange={(e) => setItemForm((f) => ({ ...f, width: e.target.value }))}
                   placeholder="1200"
-                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
                 />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">Notes</Label>
+                <Label className="text-zinc-700">Notes</Label>
               <Input
                 value={itemForm.notes}
                 onChange={(e) => setItemForm((f) => ({ ...f, notes: e.target.value }))}
                 placeholder="Optional notes"
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
           </div>

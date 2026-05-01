@@ -92,8 +92,8 @@ export default function UsersPage() {
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Users</h1>
-          <p className="text-zinc-400 text-sm mt-0.5">Manage workshop accounts</p>
+          <h1 className="text-2xl font-bold text-zinc-950">Users</h1>
+          <p className="text-zinc-500 text-sm mt-0.5">Manage workshop accounts</p>
         </div>
         <Button onClick={() => setShowCreate(true)} className="bg-blue-600 hover:bg-blue-700">
           <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -110,14 +110,14 @@ export default function UsersPage() {
           {users.map((u) => (
             <div
               key={u.id}
-              className="bg-zinc-900 border border-zinc-800 rounded-lg px-5 py-3.5 flex items-center gap-4"
+              className="bg-white border border-zinc-200 rounded-lg px-5 py-3.5 flex items-center gap-4"
             >
-              <div className="w-9 h-9 bg-zinc-700 rounded-full flex items-center justify-center text-sm font-medium text-zinc-200 uppercase flex-shrink-0">
+              <div className="w-9 h-9 bg-zinc-100 rounded-full flex items-center justify-center text-sm font-medium text-zinc-700 uppercase flex-shrink-0">
                 {u.username[0]}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-white font-medium">{u.username}</span>
+                  <span className="text-zinc-950 font-medium">{u.username}</span>
                   {u.id === currentUser?.id && (
                     <Badge variant="outline" className="border-zinc-600 text-zinc-400 text-xs">you</Badge>
                   )}
@@ -127,13 +127,13 @@ export default function UsersPage() {
                 </div>
                 <p className="text-zinc-500 text-xs capitalize">{u.role}</p>
               </div>
-              <Badge variant="outline" className={`border-0 text-xs ${u.role === "admin" ? "bg-purple-900/40 text-purple-300" : "bg-zinc-800 text-zinc-400"}`}>
+              <Badge variant="outline" className={`border text-xs ${u.role === "admin" ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-zinc-50 text-zinc-700 border-zinc-200"}`}>
                 {u.role}
               </Badge>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => openEdit(u)}
-                  className="text-zinc-500 hover:text-white transition-colors p-1.5"
+                  className="text-zinc-500 hover:text-zinc-950 transition-colors p-1.5"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -158,22 +158,22 @@ export default function UsersPage() {
       )}
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="bg-zinc-900 border-zinc-700 text-white">
+        <DialogContent className="bg-white border-zinc-200 text-zinc-950">
           <DialogHeader>
             <DialogTitle>Add User</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">Username</Label>
+              <Label className="text-zinc-700">Username</Label>
               <Input
                 value={form.username}
                 onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
                 placeholder="e.g. john"
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">4-digit PIN</Label>
+              <Label className="text-zinc-700">4-digit PIN</Label>
               <Input
                 type="password"
                 inputMode="numeric"
@@ -184,21 +184,21 @@ export default function UsersPage() {
                   setForm((f) => ({ ...f, pin: v }));
                 }}
                 placeholder="••••"
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 font-mono tracking-widest"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono tracking-widest"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">Role</Label>
+              <Label className="text-zinc-700">Role</Label>
               <Select
                 value={form.role}
                 onValueChange={(v) => setForm((f) => ({ ...f, role: v as "admin" | "operator" }))}
               >
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+                <SelectTrigger className="bg-white border-zinc-300 text-zinc-950">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700">
-                  <SelectItem value="operator" className="text-white">Operator</SelectItem>
-                  <SelectItem value="admin" className="text-white">Admin</SelectItem>
+                <SelectContent className="bg-white border-zinc-200">
+                  <SelectItem value="operator">Operator</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -217,13 +217,13 @@ export default function UsersPage() {
       </Dialog>
 
       <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
-        <DialogContent className="bg-zinc-900 border-zinc-700 text-white">
+        <DialogContent className="bg-white border-zinc-200 text-zinc-950">
           <DialogHeader>
             <DialogTitle>Edit User: {editUser?.username}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">New PIN (leave blank to keep)</Label>
+              <Label className="text-zinc-700">New PIN (leave blank to keep)</Label>
               <Input
                 type="password"
                 inputMode="numeric"
@@ -234,21 +234,21 @@ export default function UsersPage() {
                   setEditForm((f) => ({ ...f, pin: v }));
                 }}
                 placeholder="Leave blank to keep current"
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 font-mono tracking-widest"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono tracking-widest"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">Role</Label>
+              <Label className="text-zinc-700">Role</Label>
               <Select
                 value={editForm.role}
                 onValueChange={(v) => setEditForm((f) => ({ ...f, role: v as "admin" | "operator" }))}
               >
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+                <SelectTrigger className="bg-white border-zinc-300 text-zinc-950">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700">
-                  <SelectItem value="operator" className="text-white">Operator</SelectItem>
-                  <SelectItem value="admin" className="text-white">Admin</SelectItem>
+                <SelectContent className="bg-white border-zinc-200">
+                  <SelectItem value="operator">Operator</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -257,7 +257,7 @@ export default function UsersPage() {
                 checked={editForm.active}
                 onCheckedChange={(checked) => setEditForm((f) => ({ ...f, active: checked }))}
               />
-              <Label className="text-zinc-300">Active</Label>
+              <Label className="text-zinc-700">Active</Label>
             </div>
           </div>
           <DialogFooter>

@@ -35,9 +35,9 @@ interface Worklist {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-zinc-700 text-zinc-200",
-  submitted: "bg-blue-700 text-blue-100",
-  completed: "bg-green-700 text-green-100",
+  draft: "bg-zinc-100 text-zinc-700 border border-zinc-200",
+  submitted: "bg-blue-50 text-blue-700 border border-blue-200",
+  completed: "bg-green-50 text-green-700 border border-green-200",
 };
 
 export default function WorklistsPage() {
@@ -95,8 +95,8 @@ export default function WorklistsPage() {
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Worklists</h1>
-          <p className="text-zinc-400 text-sm mt-0.5">{worklists.length} total</p>
+          <h1 className="text-2xl font-bold text-zinc-950">Worklists</h1>
+          <p className="text-zinc-500 text-sm mt-0.5">{worklists.length} total</p>
         </div>
         <Button onClick={() => setShowCreate(true)} className="bg-blue-600 hover:bg-blue-700">
           <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -107,10 +107,10 @@ export default function WorklistsPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-zinc-400 text-center py-16">Loading...</div>
+        <div className="text-zinc-500 text-center py-16">Loading...</div>
       ) : worklists.length === 0 ? (
-        <Card className="bg-zinc-900 border-zinc-800 p-12 text-center">
-          <p className="text-zinc-400">No worklists yet.</p>
+        <Card className="bg-white border-zinc-200 p-12 text-center">
+          <p className="text-zinc-500">No worklists yet.</p>
           <Button onClick={() => setShowCreate(true)} className="mt-4 bg-blue-600 hover:bg-blue-700">
             Create your first worklist
           </Button>
@@ -120,28 +120,28 @@ export default function WorklistsPage() {
           {worklists.map((w) => (
             <Card
               key={w.id}
-              className="bg-zinc-900 border-zinc-800 px-5 py-4 flex items-center gap-4 hover:border-zinc-600 transition-colors"
+              className="bg-white border-zinc-200 px-5 py-4 flex items-center gap-4 hover:border-zinc-300 transition-colors"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3">
-                  <span className="font-mono font-bold text-white text-sm">{w.worklistNumber}</span>
-                  <span className="font-mono text-blue-400 text-sm">{folderRef(w)}</span>
+                  <span className="font-mono font-bold text-zinc-950 text-sm">{w.worklistNumber}</span>
+                  <span className="font-mono text-blue-600 text-sm">{folderRef(w)}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[w.status]}`}>
                     {w.status}
                   </span>
                 </div>
                 {w.projectAddress && (
-                  <p className="text-zinc-400 text-sm mt-0.5 truncate">{w.projectAddress}</p>
+                  <p className="text-zinc-500 text-sm mt-0.5 truncate">{w.projectAddress}</p>
                 )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <Badge variant="outline" className="border-zinc-700 text-zinc-300 font-mono text-xs">
+                <Badge variant="outline" className="border-zinc-300 text-zinc-700 font-mono text-xs">
                   Rover {w.machineType}
                 </Badge>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-zinc-400 hover:text-white"
+                  className="text-zinc-500 hover:text-zinc-950"
                   onClick={() => handleDownloadCsv(w)}
                   title="Download CSV"
                 >
@@ -150,7 +150,7 @@ export default function WorklistsPage() {
                   </svg>
                 </Button>
                 <Link href={`/worklists/${w.id}`}>
-                  <Button variant="ghost" size="sm" className="text-zinc-400 hover:text-white">
+                  <Button variant="ghost" size="sm" className="text-zinc-500 hover:text-zinc-950">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
@@ -163,47 +163,47 @@ export default function WorklistsPage() {
       )}
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="bg-zinc-900 border-zinc-700 text-white">
+        <DialogContent className="bg-white border-zinc-200 text-zinc-950">
           <DialogHeader>
             <DialogTitle>New Worklist</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">Machine Type</Label>
+              <Label className="text-zinc-700">Machine Type</Label>
               <Select
                 value={form.machineType}
                 onValueChange={(v) => setForm({ ...form, machineType: v as "B" | "C" })}
               >
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+                <SelectTrigger className="bg-white border-zinc-300 text-zinc-950">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700">
-                  <SelectItem value="B" className="text-white">Rover B</SelectItem>
-                  <SelectItem value="C" className="text-white">Rover C</SelectItem>
+                <SelectContent className="bg-white border-zinc-200">
+                  <SelectItem value="B">Rover B</SelectItem>
+                  <SelectItem value="C">Rover C</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">Project Address</Label>
+              <Label className="text-zinc-700">Project Address</Label>
               <Input
                 value={form.projectAddress}
                 onChange={(e) => setForm({ ...form, projectAddress: e.target.value })}
                 placeholder="e.g. 123 Smith Street, Suburb"
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">Project ID (FileMaker)</Label>
+              <Label className="text-zinc-700">Project ID (FileMaker)</Label>
               <Input
                 value={form.projectId}
                 onChange={(e) => setForm({ ...form, projectId: e.target.value })}
                 placeholder="Optional project ID"
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowCreate(false)} className="text-zinc-400">
+            <Button variant="ghost" onClick={() => setShowCreate(false)} className="text-zinc-700">
               Cancel
             </Button>
             <Button

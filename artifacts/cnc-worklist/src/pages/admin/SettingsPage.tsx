@@ -68,13 +68,13 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
-        <p className="text-zinc-400 text-sm mt-0.5">Configure FileMaker connection and system settings</p>
+        <h1 className="text-2xl font-bold text-zinc-950">Settings</h1>
+        <p className="text-zinc-500 text-sm mt-0.5">Configure FileMaker connection and system settings</p>
       </div>
 
       <div className="space-y-6">
-        <Card className="bg-zinc-900 border-zinc-800 p-6">
-          <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+        <Card className="bg-white border-zinc-200 p-6">
+          <h2 className="text-zinc-950 font-semibold mb-4 flex items-center gap-2">
             <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
             </svg>
@@ -82,47 +82,47 @@ export default function SettingsPage() {
           </h2>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">Server URL</Label>
+              <Label className="text-zinc-700">Server URL</Label>
               <Input
                 value={form.filemaker_server_url}
                 onChange={(e) => setForm((f) => ({ ...f, filemaker_server_url: e.target.value }))}
                 placeholder="https://filemaker.example.com"
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">Database Name</Label>
+              <Label className="text-zinc-700">Database Name</Label>
               <Input
                 value={form.filemaker_database}
                 onChange={(e) => setForm((f) => ({ ...f, filemaker_database: e.target.value }))}
                 placeholder="MyDatabase"
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-zinc-300">Username</Label>
+                <Label className="text-zinc-700">Username</Label>
                 <Input
                   value={form.filemaker_username}
                   onChange={(e) => setForm((f) => ({ ...f, filemaker_username: e.target.value }))}
                   placeholder="admin"
-                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-zinc-300">Password</Label>
+                <Label className="text-zinc-700">Password</Label>
                 <div className="relative">
                   <Input
                     type={showFmPassword ? "text" : "password"}
                     value={form.filemaker_password}
                     onChange={(e) => setForm((f) => ({ ...f, filemaker_password: e.target.value }))}
                     placeholder={settings?.filemaker_password === "***" ? "••••••• (saved)" : "Enter password"}
-                    className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 pr-10"
+                    className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 pr-10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowFmPassword(!showFmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-950"
                   >
                     {showFmPassword ? (
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -141,8 +141,8 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        <Card className="bg-zinc-900 border-zinc-800 p-6">
-          <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+        <Card className="bg-white border-zinc-200 p-6">
+          <h2 className="text-zinc-950 font-semibold mb-4 flex items-center gap-2">
             <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
@@ -150,13 +150,13 @@ export default function SettingsPage() {
           </h2>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">Worklist Start Number</Label>
+              <Label className="text-zinc-700">Worklist Start Number</Label>
               <Input
                 type="number"
                 min={1}
                 value={form.worklist_start_number}
                 onChange={(e) => setForm((f) => ({ ...f, worklist_start_number: e.target.value }))}
-                className="bg-zinc-800 border-zinc-700 text-white max-w-40"
+                className="bg-white border-zinc-300 text-zinc-950 max-w-40"
               />
               <p className="text-zinc-500 text-xs">
                 Only effective before the first worklist is created, or when Force Reset is enabled.
@@ -170,17 +170,17 @@ export default function SettingsPage() {
                 onChange={(e) => setForceOverride(e.target.checked)}
                 className="w-4 h-4 accent-red-500"
               />
-              <Label htmlFor="force-override" className="text-zinc-300 text-sm cursor-pointer">
+              <Label htmlFor="force-override" className="text-zinc-700 text-sm cursor-pointer">
                 Force reset sequence counter (use with caution — existing worklists keep their numbers)
               </Label>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-zinc-300">CSV Server Path</Label>
+              <Label className="text-zinc-700">CSV Server Path</Label>
               <Input
                 value={form.csv_server_path}
                 onChange={(e) => setForm((f) => ({ ...f, csv_server_path: e.target.value }))}
                 placeholder="\\server\share\worklists"
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 font-mono text-sm"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono text-sm"
               />
               <p className="text-zinc-500 text-xs">
                 Windows UNC path where CSV files are saved on the local server (for reference).

@@ -26,8 +26,8 @@ export default function ProjectsPage() {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Projects</h1>
-        <p className="text-zinc-400 text-sm mt-0.5">From FileMaker database</p>
+        <h1 className="text-2xl font-bold text-zinc-950">Projects</h1>
+        <p className="text-zinc-500 text-sm mt-0.5">From FileMaker database</p>
       </div>
 
       <div className="mb-4">
@@ -35,7 +35,7 @@ export default function ProjectsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search projects..."
-          className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500 max-w-sm"
+          className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 max-w-sm"
         />
       </div>
 
@@ -64,7 +64,7 @@ export default function ProjectsPage() {
 
       {!isLoading && !error && projects && (
         projects.length === 0 ? (
-          <Card className="bg-zinc-900 border-zinc-800 p-12 text-center">
+          <Card className="bg-white border-zinc-200 p-12 text-center">
             <p className="text-zinc-500">No projects found.</p>
           </Card>
         ) : (
@@ -72,18 +72,18 @@ export default function ProjectsPage() {
             {projects.map((p) => (
               <Card
                 key={p.recordId}
-                className="bg-zinc-900 border-zinc-800 px-5 py-3.5 hover:border-zinc-600 transition-colors"
+                className="bg-white border-zinc-200 px-5 py-3.5 hover:border-zinc-300 transition-colors"
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-white font-medium truncate">{p.address}</p>
+                    <p className="text-zinc-950 font-medium truncate">{p.address}</p>
                     {p.clientName && (
                       <p className="text-zinc-400 text-sm">{p.clientName}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {p.status && (
-                      <Badge variant="outline" className="border-zinc-700 text-zinc-300 text-xs">
+                      <Badge variant="outline" className="border-zinc-300 text-zinc-700 text-xs">
                         {p.status}
                       </Badge>
                     )}

@@ -108,6 +108,7 @@ export default function WorklistDetailPage() {
       apiFetch(`/worklists/${id}/items/${itemId}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["worklist", id] });
+      queryClient.refetchQueries({ queryKey: ["worklist", id] });
       toast({ title: "Item removed" });
     },
   });
@@ -266,6 +267,7 @@ export default function WorklistDetailPage() {
                   <td className="px-4 py-2.5 text-zinc-500 text-xs">{item.notes}</td>
                   <td className="px-4 py-2.5">
                     <button
+                      type="button"
                       onClick={() => {
                         if (confirm(`Delete ${item.pcode ?? "item"}?`)) {
                           deleteItemMutation.mutate(item.id);

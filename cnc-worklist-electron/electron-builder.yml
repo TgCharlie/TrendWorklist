@@ -1,0 +1,65 @@
+appId: com.cncworklistmanager.app
+productName: CNC Worklist Manager
+copyright: Copyright © 2024 Your Company Name
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - main.js
+  - preload.js
+  - package.json
+  - node_modules/**/*
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: msi
+      arch:
+        - x64
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: CNC Worklist Manager
+
+msi:
+  oneClick: false
+  perMachine: false
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+  category: public.app-category.productivity
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
+dmg:
+  title: "CNC Worklist Manager"
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+publish:
+  provider: github
+  owner: your-github-username
+  repo: cnc-worklist-electron
+  releaseType: release
+
+autoUpdatable: true

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { downloadCsv } from "@/lib/electron-bridge";
 import { useParams, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -139,12 +140,10 @@ export default function WorklistDetailPage() {
 
   function handleDownloadCsv() {
     if (!worklist) return;
-    const a = document.createElement("a");
-    a.href = `/api/worklists/${worklist.id}/csv`;
-    a.download = `${worklist.worklistNumber}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    downloadCsv(
+      `/api/worklists/${worklist.id}/csv`,
+      `${worklist.worklistNumber}.csv`,
+    );
   }
 
   if (isLoading) {

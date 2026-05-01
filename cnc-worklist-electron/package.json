@@ -1,0 +1,21 @@
+{
+  "name": "cnc-worklist-electron",
+  "version": "1.0.0",
+  "description": "Electron desktop shell for CNC Worklist Manager",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "release": "electron-builder --publish always"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^32.2.7",
+    "electron-builder": "^25.1.8"
+  }
+}

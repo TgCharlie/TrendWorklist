@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { downloadCsv } from "@/lib/electron-bridge";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -771,12 +772,7 @@ export default function WorklistsPage() {
   }
 
   function handleDownloadCsv(wl: { id: number; worklistNumber: string }) {
-    const a = document.createElement("a");
-    a.href = `/api/worklists/${wl.id}/csv`;
-    a.download = `${wl.worklistNumber}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    downloadCsv(`/api/worklists/${wl.id}/csv`, `${wl.worklistNumber}.csv`);
   }
 
   const currentStepIndex = STEPS.indexOf(createState.step);

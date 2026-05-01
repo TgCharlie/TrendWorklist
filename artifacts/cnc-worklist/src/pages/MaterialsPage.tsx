@@ -84,9 +84,9 @@ export default function MaterialsPage() {
     setForm({
       pcode: m.pcode,
       displayName: m.displayName,
-      length: "",
-      width: "",
-      thickness: "",
+      length: m.length != null ? String(m.length) : "",
+      width: m.width != null ? String(m.width) : "",
+      thickness: m.thickness != null ? String(m.thickness) : "",
       notes: m.notes ?? "",
     });
   }
@@ -135,6 +135,9 @@ export default function MaterialsPage() {
               <tr className="bg-zinc-50">
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">PCODE</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Description</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">L</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">W</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">T</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Notes</th>
                 {isAdmin && <th className="px-4 py-2.5"></th>}
               </tr>
@@ -144,6 +147,9 @@ export default function MaterialsPage() {
                 <tr key={m.id} className={`border-t border-zinc-200 ${i % 2 === 0 ? "bg-white" : "bg-zinc-50"}`}>
                   <td className="px-4 py-2.5 font-mono text-blue-600 text-xs font-bold">{m.pcode}</td>
                   <td className="px-4 py-2.5 text-zinc-800">{m.displayName}</td>
+                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.length ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.width ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.thickness ?? "—"}</td>
                   <td className="px-4 py-2.5 text-zinc-500 text-xs">{m.notes}</td>
                   {isAdmin && (
                     <td className="px-4 py-2.5">

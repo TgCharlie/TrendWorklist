@@ -60,9 +60,12 @@ router.get("/:id/stock", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/", requireAdmin, async (req, res): Promise<void> => {
-  const { pcode, displayName, notes } = req.body as {
+  const { pcode, displayName, length, width, thickness, notes } = req.body as {
     pcode?: string;
     displayName?: string;
+    length?: number | string;
+    width?: number | string;
+    thickness?: number | string;
     notes?: string;
   };
   if (!pcode || !displayName) {
@@ -71,21 +74,34 @@ router.post("/", requireAdmin, async (req, res): Promise<void> => {
   }
   const [material] = await db
     .insert(materialsTable)
-    .values({ pcode: pcode.toUpperCase(), displayName, notes })
+    .values({
+      pcode: pcode.toUpperCase(),
+      displayName,
+      length: length !== undefined && length !== "" ? Number(length) : null,
+      width: width !== undefined && width !== "" ? Number(width) : null,
+      thickness: thickness !== undefined && thickness !== "" ? Number(thickness) : null,
+      notes,
+    })
     .returning();
   res.status(201).json(material);
 });
 
 router.put("/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
-  const { pcode, displayName, notes } = req.body as {
+  const { pcode, displayName, length, width, thickness, notes } = req.body as {
     pcode?: string;
     displayName?: string;
+    length?: number | string | null;
+    width?: number | string | null;
+    thickness?: number | string | null;
     notes?: string;
   };
   const updates: Partial<typeof materialsTable.$inferInsert> = {};
   if (pcode !== undefined) updates.pcode = pcode.toUpperCase();
   if (displayName !== undefined) updates.displayName = displayName;
+  if (length !== undefined) updates.length = length !== null && length !== "" ? Number(length) : null;
+  if (width !== undefined) updates.width = width !== null && width !== "" ? Number(width) : null;
+  if (thickness !== undefined) updates.thickness = thickness !== null && thickness !== "" ? Number(thickness) : null;
   if (notes !== undefined) updates.notes = notes;
 
   const [material] = await db

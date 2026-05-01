@@ -62,6 +62,7 @@ const EMPTY_ITEM = {
   quantity: 1,
   length: "",
   width: "",
+  thickness: "",
   notes: "",
   materialId: null as number | null,
 };

@@ -19,6 +19,9 @@ interface Material {
   id: number;
   pcode: string;
   displayName: string;
+  length: string | null;
+  width: string | null;
+  thickness: string | null;
   notes: string | null;
   createdAt: string;
 }
@@ -30,7 +33,7 @@ export default function MaterialsPage() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editItem, setEditItem] = useState<Material | null>(null);
-  const [form, setForm] = useState({ pcode: "", displayName: "", notes: "" });
+  const [form, setForm] = useState({ pcode: "", displayName: "", length: "", width: "", thickness: "", notes: "" });
 
   const { data: materials = [], isLoading } = useQuery<Material[]>({
     queryKey: ["materials", search],
@@ -44,7 +47,7 @@ export default function MaterialsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["materials"] });
       setShowCreate(false);
-      setForm({ pcode: "", displayName: "", notes: "" });
+      setForm({ pcode: "", displayName: "", length: "", width: "", thickness: "", notes: "" });
       toast({ title: "Material created" });
     },
     onError: (err: Error) => {
@@ -78,7 +81,14 @@ export default function MaterialsPage() {
 
   function openEdit(m: Material) {
     setEditItem(m);
-    setForm({ pcode: m.pcode, displayName: m.displayName, notes: m.notes ?? "" });
+    setForm({
+      pcode: m.pcode,
+      displayName: m.displayName,
+      length: "",
+      width: "",
+      thickness: "",
+      notes: m.notes ?? "",
+    });
   }
 
   return (
@@ -90,7 +100,7 @@ export default function MaterialsPage() {
         </div>
         {isAdmin && (
           <Button
-            onClick={() => { setShowCreate(true); setForm({ pcode: "", displayName: "", notes: "" }); }}
+            onClick={() => { setShowCreate(true); setForm({ pcode: "", displayName: "", length: "", width: "", thickness: "", notes: "" }); }}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -191,6 +201,35 @@ export default function MaterialsPage() {
                 placeholder="e.g. 18mm MDF Sheet 2400x1200"
                 className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-zinc-700">Length</Label>
+                <Input
+                  value={form.length}
+                  onChange={(e) => setForm((f) => ({ ...f, length: e.target.value }))}
+                  placeholder="2400"
+                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-zinc-700">Width</Label>
+                <Input
+                  value={form.width}
+                  onChange={(e) => setForm((f) => ({ ...f, width: e.target.value }))}
+                  placeholder="1200"
+                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-zinc-700">Thickness</Label>
+                <Input
+                  value={form.thickness}
+                  onChange={(e) => setForm((f) => ({ ...f, thickness: e.target.value }))}
+                  placeholder="18"
+                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-zinc-700">Notes</Label>

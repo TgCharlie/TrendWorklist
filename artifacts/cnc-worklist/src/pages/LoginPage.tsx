@@ -55,34 +55,34 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
-      <Card className="w-full max-w-sm bg-zinc-900 border-zinc-800">
+    <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-sm bg-white border-zinc-200">
         <CardHeader className="text-center pb-2">
           <div className="w-12 h-12 bg-blue-600 rounded-xl mx-auto mb-3 flex items-center justify-center">
             <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
           </div>
-          <CardTitle className="text-white text-xl">CNC Worklist Manager</CardTitle>
-          <p className="text-zinc-400 text-sm mt-1">Sign in to continue</p>
+          <CardTitle className="text-zinc-950 text-xl">CNC Worklist Manager</CardTitle>
+          <p className="text-zinc-500 text-sm mt-1">Sign in to continue</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
-              <Label htmlFor="username" className="text-zinc-300 text-sm">Username</Label>
+              <Label htmlFor="username" className="text-zinc-700 text-sm">Username</Label>
               <Input
                 id="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter username"
                 autoComplete="username"
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
                 required
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-zinc-300 text-sm">PIN</Label>
+              <Label className="text-zinc-700 text-sm">PIN</Label>
               <div className="flex gap-3 justify-center">
                 {pin.map((digit, i) => (
                   <input
@@ -94,7 +94,7 @@ export default function LoginPage() {
                     value={digit}
                     onChange={(e) => handlePinChange(i, e.target.value)}
                     onKeyDown={(e) => handlePinKeyDown(i, e)}
-                    className="w-12 h-12 text-center text-xl font-bold bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent caret-transparent"
+                    className="w-12 h-12 text-center text-xl font-bold bg-white border border-zinc-300 rounded-lg text-zinc-950 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent caret-transparent"
                   />
                 ))}
               </div>

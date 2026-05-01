@@ -71,7 +71,7 @@ function NavLink({ item }: { item: NavItem }) {
         "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
         isActive
           ? "bg-blue-600 text-white"
-          : "text-zinc-400 hover:text-white hover:bg-zinc-800",
+          : "text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100",
       )}
     >
       {item.icon}
@@ -89,28 +89,28 @@ export default function Layout({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex">
+    <div className="min-h-screen bg-zinc-50 flex">
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          className="fixed inset-0 bg-black/20 z-20 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       <aside
         className={cn(
-          "fixed top-0 left-0 h-full w-60 bg-zinc-900 border-r border-zinc-800 z-30 flex flex-col transition-transform duration-200",
+          "fixed top-0 left-0 h-full w-60 bg-white border-r border-zinc-200 z-30 flex flex-col transition-transform duration-200",
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
-        <div className="p-4 border-b border-zinc-800">
+        <div className="p-4 border-b border-zinc-200">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
-            <span className="text-white font-semibold text-sm leading-tight">CNC Worklist<br />Manager</span>
+            <span className="text-zinc-950 font-semibold text-sm leading-tight">CNC Worklist<br />Manager</span>
           </div>
         </div>
 
@@ -122,18 +122,18 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         <div className="p-3 border-t border-zinc-800">
           <div className="flex items-center gap-2 px-3 py-2 mb-2">
-            <div className="w-7 h-7 bg-zinc-700 rounded-full flex items-center justify-center text-xs text-zinc-300 font-medium uppercase">
+            <div className="w-7 h-7 bg-zinc-100 rounded-full flex items-center justify-center text-xs text-zinc-700 font-medium uppercase">
               {user?.username?.[0]}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white text-xs font-medium truncate">{user?.username}</p>
+              <p className="text-zinc-950 text-xs font-medium truncate">{user?.username}</p>
               <p className="text-zinc-500 text-xs capitalize">{user?.role}</p>
             </div>
           </div>
           <Button
             variant="ghost"
             size="sm"
-            className="w-full text-zinc-400 hover:text-white hover:bg-zinc-800 justify-start"
+            className="w-full text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 justify-start"
             onClick={logout}
           >
             <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -145,16 +145,16 @@ export default function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex-1 lg:ml-60 flex flex-col min-h-screen">
-        <header className="lg:hidden bg-zinc-900 border-b border-zinc-800 px-4 py-3 flex items-center gap-3">
+        <header className="lg:hidden bg-white border-b border-zinc-200 px-4 py-3 flex items-center gap-3">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="text-zinc-400 hover:text-white"
+            className="text-zinc-700 hover:text-zinc-950"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="text-white font-semibold">CNC Worklist Manager</span>
+          <span className="text-zinc-950 font-semibold">CNC Worklist Manager</span>
         </header>
         <main className="flex-1 p-6">{children}</main>
       </div>

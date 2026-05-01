@@ -1,3 +1,4 @@
+import { Agent, type Dispatcher } from "undici";
 import { getSetting } from "./settings";
 
 interface FileMakerConfig {
@@ -5,6 +6,12 @@ interface FileMakerConfig {
   database: string;
   username: string;
   password: string;
+  allowSelfSigned: boolean;
+}
+
+function makeAgent(allowSelfSigned: boolean): Dispatcher | undefined {
+  if (!allowSelfSigned) return undefined;
+  return new Agent({ connect: { rejectUnauthorized: false } });
 }
 
 interface FileMakerRecord {
@@ -25,18 +32,26 @@ interface FileMakerResponse {
 }
 
 async function getConfig(): Promise<FileMakerConfig> {
-  const [serverUrl, database, username, password] = await Promise.all([
+  const [serverUrl, database, username, password, allowSelfSignedStr] = await Promise.all([
     getSetting("filemaker_server_url"),
     getSetting("filemaker_database"),
     getSetting("filemaker_username"),
     getSetting("filemaker_password"),
+    getSetting("filemaker_allow_self_signed"),
   ]);
-  return { serverUrl, database, username, password };
+  return {
+    serverUrl,
+    database,
+    username,
+    password,
+    allowSelfSigned: allowSelfSignedStr === "true",
+  };
 }
 
 async function acquireToken(config: FileMakerConfig): Promise<string> {
   const url = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/sessions`;
   const credentials = Buffer.from(`${config.username}:${config.password}`).toString("base64");
+  const dispatcher = makeAgent(config.allowSelfSigned);
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -44,7 +59,8 @@ async function acquireToken(config: FileMakerConfig): Promise<string> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({}),
-  });
+    ...(dispatcher ? { dispatcher } : {}),
+  } as RequestInit);
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`FileMaker auth failed: ${res.status} ${text}`);
@@ -58,10 +74,12 @@ async function acquireToken(config: FileMakerConfig): Promise<string> {
 async function releaseToken(config: FileMakerConfig, token: string): Promise<void> {
   try {
     const url = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/sessions/${token}`;
+    const dispatcher = makeAgent(config.allowSelfSigned);
     await fetch(url, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
-    });
+      ...(dispatcher ? { dispatcher } : {}),
+    } as RequestInit);
   } catch {
   }
 }
@@ -92,6 +110,8 @@ async function findRecords(
   let url: string;
   let options: RequestInit;
 
+  const dispatcher = makeAgent(config.allowSelfSigned);
+
   if (query && query.length > 0) {
     url = `${base}/_find`;
     options = {
@@ -101,13 +121,15 @@ async function findRecords(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ query, limit, offset }),
-    };
+      ...(dispatcher ? { dispatcher } : {}),
+    } as RequestInit;
   } else {
     url = `${base}/records?_limit=${limit}&_offset=${offset}`;
     options = {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
-    };
+      ...(dispatcher ? { dispatcher } : {}),
+    } as RequestInit;
   }
 
   const res = await fetch(url, options);

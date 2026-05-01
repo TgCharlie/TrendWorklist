@@ -11,6 +11,7 @@ const ALLOWED_KEYS = [
   "filemaker_database",
   "filemaker_username",
   "filemaker_password",
+  "filemaker_allow_self_signed",
   "csv_server_path",
   "worklist_start_number",
 ];

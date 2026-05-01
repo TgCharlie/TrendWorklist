@@ -6,6 +6,7 @@ const DEFAULTS: Record<string, string> = {
   filemaker_database: "",
   filemaker_username: "",
   filemaker_password: "",
+  filemaker_allow_self_signed: "false",
   csv_server_path: "",
   worklist_start_number: "1",
 };

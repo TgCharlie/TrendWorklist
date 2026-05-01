@@ -12,6 +12,7 @@ interface Settings {
   filemaker_database: string;
   filemaker_username: string;
   filemaker_password: string;
+  filemaker_allow_self_signed: string;
   csv_server_path: string;
   worklist_start_number: string;
 }
@@ -23,6 +24,7 @@ export default function SettingsPage() {
     filemaker_database: "",
     filemaker_username: "",
     filemaker_password: "",
+    filemaker_allow_self_signed: "false",
     csv_server_path: "",
     worklist_start_number: "1",
   });
@@ -136,6 +138,28 @@ export default function SettingsPage() {
                     )}
                   </button>
                 </div>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 pt-1">
+              <input
+                id="allow-self-signed"
+                type="checkbox"
+                checked={form.filemaker_allow_self_signed === "true"}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    filemaker_allow_self_signed: e.target.checked ? "true" : "false",
+                  }))
+                }
+                className="w-4 h-4 mt-0.5 accent-blue-600 shrink-0"
+              />
+              <div>
+                <Label htmlFor="allow-self-signed" className="text-zinc-700 text-sm cursor-pointer">
+                  Allow self-signed / mismatched SSL certificate
+                </Label>
+                <p className="text-zinc-500 text-xs mt-0.5">
+                  Enable this if your FileMaker server uses a self-signed certificate or one that doesn't match its hostname. Disables SSL verification for FileMaker connections only.
+                </p>
               </div>
             </div>
           </div>

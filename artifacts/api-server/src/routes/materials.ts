@@ -1,15 +1,67 @@
 import { Router } from "express";
-import { db, materialsTable } from "@workspace/db";
-import { eq, or, ilike } from "drizzle-orm";
+import { db, materialsTable, userFavouritesTable } from "@workspace/db";
+import { eq, or, ilike, and, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../lib/auth-middleware";
 import { getStockLevel } from "../lib/filemaker";
 
 const router = Router();
 
+async function withFavourites(
+  materials: (typeof materialsTable.$inferSelect)[],
+  userId: number,
+) {
+  if (materials.length === 0) return materials.map((m) => ({ ...m, isFavourite: false }));
+  const materialIds = materials.map((m) => m.id);
+  const favRows = await db
+    .select({ materialId: userFavouritesTable.materialId })
+    .from(userFavouritesTable)
+    .where(
+      and(
+        eq(userFavouritesTable.userId, userId),
+        inArray(userFavouritesTable.materialId, materialIds),
+      ),
+    );
+  const favSet = new Set(favRows.map((r) => r.materialId));
+  return materials.map((m) => ({ ...m, isFavourite: favSet.has(m.id) }));
+}
+
 router.get("/", requireAuth, async (req, res): Promise<void> => {
   const search = req.query.search as string | undefined;
-  let rows;
-  if (search) {
+  const favouritesOnly = req.query.favouritesOnly === "true";
+  const userId = req.session.userId as number;
+
+  let rows: (typeof materialsTable.$inferSelect)[];
+
+  if (favouritesOnly) {
+    const favRows = await db
+      .select({ materialId: userFavouritesTable.materialId })
+      .from(userFavouritesTable)
+      .where(eq(userFavouritesTable.userId, userId));
+    const favIds = favRows.map((r) => r.materialId);
+    if (favIds.length === 0) {
+      res.json([]);
+      return;
+    }
+    if (search) {
+      rows = await db
+        .select()
+        .from(materialsTable)
+        .where(
+          and(
+            inArray(materialsTable.id, favIds),
+            or(
+              ilike(materialsTable.displayName, `%${search}%`),
+              ilike(materialsTable.pcode, `%${search}%`),
+            ),
+          ),
+        );
+    } else {
+      rows = await db
+        .select()
+        .from(materialsTable)
+        .where(inArray(materialsTable.id, favIds));
+    }
+  } else if (search) {
     rows = await db
       .select()
       .from(materialsTable)
@@ -22,11 +74,14 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
   } else {
     rows = await db.select().from(materialsTable);
   }
-  res.json(rows);
+
+  const result = await withFavourites(rows, userId);
+  res.json(result);
 });
 
 router.get("/:id", requireAuth, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
+  const userId = req.session.userId as number;
   const [material] = await db
     .select()
     .from(materialsTable)
@@ -36,7 +91,8 @@ router.get("/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Material not found" });
     return;
   }
-  res.json(material);
+  const [result] = await withFavourites([material], userId);
+  res.json(result);
 });
 
 router.get("/:id/stock", requireAuth, async (req, res): Promise<void> => {
@@ -56,6 +112,32 @@ router.get("/:id/stock", requireAuth, async (req, res): Promise<void> => {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     res.status(502).json({ error: message });
+  }
+});
+
+router.post("/:id/favourite", requireAuth, async (req, res): Promise<void> => {
+  const materialId = Number(req.params.id);
+  const userId = req.session.userId as number;
+
+  const [existing] = await db
+    .select()
+    .from(userFavouritesTable)
+    .where(
+      and(
+        eq(userFavouritesTable.userId, userId),
+        eq(userFavouritesTable.materialId, materialId),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    await db
+      .delete(userFavouritesTable)
+      .where(eq(userFavouritesTable.id, existing.id));
+    res.json({ isFavourite: false, materialId });
+  } else {
+    await db.insert(userFavouritesTable).values({ userId, materialId });
+    res.json({ isFavourite: true, materialId });
   }
 });
 
@@ -83,11 +165,12 @@ router.post("/", requireAdmin, async (req, res): Promise<void> => {
       notes,
     })
     .returning();
-  res.status(201).json(material);
+  res.status(201).json({ ...material, isFavourite: false });
 });
 
 router.put("/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
+  const userId = req.session.userId as number;
   const { pcode, displayName, length, width, thickness, notes } = req.body as {
     pcode?: string;
     displayName?: string;
@@ -113,7 +196,8 @@ router.put("/:id", requireAdmin, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Material not found" });
     return;
   }
-  res.json(material);
+  const [result] = await withFavourites([material], userId);
+  res.json(result);
 });
 
 router.delete("/:id", requireAdmin, async (req, res): Promise<void> => {

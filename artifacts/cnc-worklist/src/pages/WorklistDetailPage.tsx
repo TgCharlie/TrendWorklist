@@ -32,6 +32,7 @@ interface WorklistItem {
   quantity: number;
   length: string | null;
   width: string | null;
+  thickness: string | null;
   notes: string | null;
 }
 
@@ -237,8 +238,9 @@ export default function WorklistDetailPage() {
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">PCODE</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Description</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">Qty</th>
-                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">Length</th>
-                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">Width</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">L (mm)</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">W (mm)</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">T (mm)</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Notes</th>
                 <th className="px-4 py-2.5"></th>
               </tr>
@@ -257,6 +259,9 @@ export default function WorklistDetailPage() {
                   </td>
                   <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
                     {item.width ?? "—"}
+                  </td>
+                  <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
+                    {item.thickness ?? "—"}
                   </td>
                   <td className="px-4 py-2.5 text-zinc-500 text-xs">{item.notes}</td>
                   <td className="px-4 py-2.5">

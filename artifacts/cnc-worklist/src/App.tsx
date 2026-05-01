@@ -7,8 +7,9 @@ import Layout from "@/components/Layout";
 import LoginPage from "@/pages/LoginPage";
 import WorklistsPage from "@/pages/WorklistsPage";
 import WorklistDetailPage from "@/pages/WorklistDetailPage";
+import CutlistsPage from "@/pages/CutlistsPage";
 import MaterialsPage from "@/pages/MaterialsPage";
-import ProjectsPage from "@/pages/ProjectsPage";
+import FavouritesPage from "@/pages/FavouritesPage";
 import UsersPage from "@/pages/admin/UsersPage";
 import SettingsPage from "@/pages/admin/SettingsPage";
 import NotFound from "@/pages/not-found";
@@ -48,8 +49,9 @@ function AppRoutes() {
       <Switch>
         <Route path="/" component={WorklistsPage} />
         <Route path="/worklists/:id" component={WorklistDetailPage} />
-        <Route path="/projects" component={ProjectsPage} />
+        <Route path="/cutlists" component={CutlistsPage} />
         <Route path="/materials" component={MaterialsPage} />
+        <Route path="/favourites" component={FavouritesPage} />
         <Route path="/admin/users">
           <AdminRoute component={UsersPage} />
         </Route>

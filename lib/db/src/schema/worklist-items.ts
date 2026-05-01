@@ -23,6 +23,7 @@ export const worklistItemsTable = pgTable("worklist_items", {
   quantity: integer("quantity").notNull().default(1),
   length: numeric("length", { precision: 10, scale: 2 }),
   width: numeric("width", { precision: 10, scale: 2 }),
+  thickness: numeric("thickness", { precision: 10, scale: 2 }),
   notes: text("notes"),
 });
 

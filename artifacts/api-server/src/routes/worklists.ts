@@ -162,15 +162,19 @@ router.delete("/:id", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/:id/items", requireAuth, async (req, res): Promise<void> => {
   const worklistId = Number(req.params.id);
-  const { materialId, pcode, displayName, quantity, length, width, notes } = req.body as {
+  const { materialId, pcode, displayName, quantity, length, width, thickness, notes } = req.body as {
     materialId?: number | null;
     pcode?: string;
     displayName?: string;
     quantity?: number;
     length?: number | string | null;
     width?: number | string | null;
+    thickness?: number | string | null;
     notes?: string;
   };
+
+  const toNum = (v: number | string | null | undefined) =>
+    v !== undefined && v !== "" && v !== null ? String(v) : null;
 
   const [item] = await db
     .insert(worklistItemsTable)
@@ -180,8 +184,9 @@ router.post("/:id/items", requireAuth, async (req, res): Promise<void> => {
       pcode: pcode || null,
       displayName: displayName || null,
       quantity: quantity ?? 1,
-      length: length !== undefined && length !== "" && length !== null ? String(length) : null,
-      width: width !== undefined && width !== "" && width !== null ? String(width) : null,
+      length: toNum(length),
+      width: toNum(width),
+      thickness: toNum(thickness),
       notes: notes || null,
     })
     .returning();
@@ -190,25 +195,28 @@ router.post("/:id/items", requireAuth, async (req, res): Promise<void> => {
 
 router.put("/:id/items/:itemId", requireAuth, async (req, res): Promise<void> => {
   const itemId = Number(req.params.itemId);
-  const { materialId, pcode, displayName, quantity, length, width, notes } = req.body as {
+  const { materialId, pcode, displayName, quantity, length, width, thickness, notes } = req.body as {
     materialId?: number | null;
     pcode?: string;
     displayName?: string;
     quantity?: number;
     length?: number | string | null;
     width?: number | string | null;
+    thickness?: number | string | null;
     notes?: string | null;
   };
+
+  const toNum = (v: number | string | null | undefined) =>
+    v !== "" && v !== null ? String(v) : null;
 
   const updates: Partial<typeof worklistItemsTable.$inferInsert> = {};
   if (materialId !== undefined) updates.materialId = materialId;
   if (pcode !== undefined) updates.pcode = pcode || null;
   if (displayName !== undefined) updates.displayName = displayName || null;
   if (quantity !== undefined) updates.quantity = quantity;
-  if (length !== undefined)
-    updates.length = length !== "" && length !== null ? String(length) : null;
-  if (width !== undefined)
-    updates.width = width !== "" && width !== null ? String(width) : null;
+  if (length !== undefined) updates.length = toNum(length);
+  if (width !== undefined) updates.width = toNum(width);
+  if (thickness !== undefined) updates.thickness = toNum(thickness);
   if (notes !== undefined) updates.notes = notes || null;
 
   const [item] = await db
@@ -263,7 +271,7 @@ router.get("/:id/csv", requireAuth, async (req, res): Promise<void> => {
     `Status,${worklist.status}`,
     `Created At,${worklist.createdAt.toISOString()}`,
     "",
-    "PCODE,Description,Quantity,Length,Width,Notes",
+    "PCODE,Description,Quantity,Length,Width,Thickness,Notes",
     ...items.map((item) =>
       [
         item.pcode ?? "",
@@ -271,6 +279,7 @@ router.get("/:id/csv", requireAuth, async (req, res): Promise<void> => {
         item.quantity,
         item.length ?? "",
         item.width ?? "",
+        item.thickness ?? "",
         item.notes ?? "",
       ]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)

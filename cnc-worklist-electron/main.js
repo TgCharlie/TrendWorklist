@@ -155,8 +155,13 @@ app.on("before-quit", () => {
   }
 });
 
+// Quit when all windows are closed on any platform.
+// On Windows this only fires when the user explicitly quits from the tray menu
+// (because closing the window hides it to the tray rather than closing it).
+// On macOS this fires when the user clicks the red close button, satisfying
+// the "close to tray on Windows, quit on macOS" requirement.
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  app.quit();
 });
 
 autoUpdater.on("update-available", (info) => {

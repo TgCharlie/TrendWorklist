@@ -114,14 +114,25 @@ If the files are absent, `electron-builder` falls back to the default Electron i
 
 ---
 
-## Windows system tray
+## Platform lifecycle behavior
 
-On Windows, closing the main window minimizes the app to the system tray rather than quitting it. A tray icon appears in the notification area with a right-click context menu:
+| Platform | Close window | Fully quit |
+|---|---|---|
+| **Windows** | Minimizes to system tray | Tray menu → Quit |
+| **macOS** | App quits immediately | Close window (red dot) |
+
+### Windows system tray
+
+On Windows, clicking the × button minimizes the app to the system tray rather than quitting it. A tray icon appears in the notification area with a right-click context menu:
 
 - **Show CNC Worklist Manager** — restores and focuses the window
 - **Quit** — fully exits the app
 
 Double-clicking the tray icon also restores the window. The tray is removed when the app fully quits.
+
+### macOS
+
+On macOS the app quits when the window is closed (click the red dot or ⌘Q). There is no background dock process — relaunch from Applications or the Dock as needed.
 
 ---
 

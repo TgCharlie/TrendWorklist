@@ -266,7 +266,11 @@ export default function WorklistDetailPage() {
                   <td className="px-4 py-2.5 text-zinc-500 text-xs">{item.notes}</td>
                   <td className="px-4 py-2.5">
                     <button
-                      onClick={() => deleteItemMutation.mutate(item.id)}
+                      onClick={() => {
+                        if (confirm(`Delete ${item.pcode ?? "item"}?`)) {
+                          deleteItemMutation.mutate(item.id);
+                        }
+                      }}
                       className="text-zinc-400 hover:text-red-500 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

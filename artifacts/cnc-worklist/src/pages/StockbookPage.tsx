@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListStockbook,
-  useSyncStockbook,
   getListStockbookQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,30 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+const API_BASE = "/api";
+
+interface SyncState {
+  active: boolean;
+  phase: "fetch" | "save" | null;
+  fetched: number;
+  fetchTotal: number;
+  saved: number;
+  saveTotal: number;
+  error: string | null;
+  lastResult: { synced: number; syncedAt: string } | null;
+}
+
+const idleSyncState: SyncState = {
+  active: false,
+  phase: null,
+  fetched: 0,
+  fetchTotal: 0,
+  saved: 0,
+  saveTotal: 0,
+  error: null,
+  lastResult: null,
+};
+
 function fmt(d: string | null | undefined): string {
   if (!d) return "Never";
   return new Date(d).toLocaleString(undefined, {
@@ -25,8 +48,21 @@ function fmt(d: string | null | undefined): string {
   });
 }
 
+function ProgressBar({ value, max }: { value: number; max: number }) {
+  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  return (
+    <div className="w-full bg-zinc-200 rounded-full h-2 overflow-hidden">
+      <div
+        className="bg-blue-500 h-2 rounded-full transition-all duration-200"
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
 export default function StockbookPage() {
   const [search, setSearch] = useState("");
+  const [syncState, setSyncState] = useState<SyncState>(idleSyncState);
   const queryClient = useQueryClient();
 
   const params = search.trim() ? { search: search.trim() } : undefined;
@@ -37,16 +73,111 @@ export default function StockbookPage() {
     },
   });
 
-  const sync = useSyncStockbook({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListStockbookQueryKey() });
-      },
-    },
-  });
+  const handleSync = async () => {
+    setSyncState({ ...idleSyncState, active: true, phase: "fetch" });
+
+    try {
+      const res = await fetch(`${API_BASE}/stockbook/sync`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!res.ok || !res.body) {
+        const text = await res.text().catch(() => `HTTP ${res.status}`);
+        throw new Error(text);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+
+        for (const part of parts) {
+          const line = part.replace(/^data: /, "").trim();
+          if (!line) continue;
+          try {
+            const msg = JSON.parse(line) as {
+              type: string;
+              phase?: string;
+              fetched?: number;
+              total?: number;
+              saved?: number;
+              synced?: number;
+              syncedAt?: string;
+              message?: string;
+            };
+
+            if (msg.type === "progress" && msg.phase === "fetch") {
+              setSyncState((s) => ({
+                ...s,
+                phase: "fetch",
+                fetched: msg.fetched ?? s.fetched,
+                fetchTotal: msg.total ?? s.fetchTotal,
+              }));
+            } else if (msg.type === "progress" && msg.phase === "save") {
+              setSyncState((s) => ({
+                ...s,
+                phase: "save",
+                saved: msg.saved ?? s.saved,
+                saveTotal: msg.total ?? s.saveTotal,
+              }));
+            } else if (msg.type === "done") {
+              setSyncState((s) => ({
+                ...s,
+                active: false,
+                phase: null,
+                lastResult: {
+                  synced: msg.synced ?? 0,
+                  syncedAt: msg.syncedAt ?? new Date().toISOString(),
+                },
+              }));
+              queryClient.invalidateQueries({ queryKey: getListStockbookQueryKey() });
+            } else if (msg.type === "error") {
+              setSyncState((s) => ({
+                ...s,
+                active: false,
+                phase: null,
+                error: msg.message ?? "Sync failed",
+              }));
+            }
+          } catch {
+          }
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Sync failed";
+      setSyncState((s) => ({ ...s, active: false, phase: null, error: message }));
+    }
+  };
 
   const items = data?.items ?? [];
   const lastSyncedAt = data?.lastSyncedAt;
+
+  const syncProgress = (() => {
+    if (!syncState.active) return null;
+    if (syncState.phase === "fetch") {
+      const total = syncState.fetchTotal;
+      const fetched = syncState.fetched;
+      return {
+        label: total
+          ? `Fetching from FileMaker… ${fetched.toLocaleString()} / ${total.toLocaleString()} records`
+          : `Fetching from FileMaker…`,
+        value: fetched,
+        max: total || fetched || 1,
+      };
+    }
+    return {
+      label: `Saving to local database… ${syncState.saved.toLocaleString()} / ${syncState.saveTotal.toLocaleString()} records`,
+      value: syncState.saved,
+      max: syncState.saveTotal || 1,
+    };
+  })();
 
   return (
     <div className="space-y-6">
@@ -60,58 +191,50 @@ export default function StockbookPage() {
         </div>
 
         <Button
-          onClick={() => sync.mutate()}
-          disabled={sync.isPending}
+          onClick={handleSync}
+          disabled={syncState.active}
           className="shrink-0 bg-blue-600 hover:bg-blue-700"
         >
-          {sync.isPending ? (
-            <>
-              <svg
-                className="w-4 h-4 mr-2 animate-spin"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              Syncing…
-            </>
-          ) : (
-            <>
-              <svg
-                className="w-4 h-4 mr-2"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              Sync from FileMaker
-            </>
-          )}
+          <svg
+            className={`w-4 h-4 mr-2 ${syncState.active ? "animate-spin" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          {syncState.active ? "Syncing…" : "Sync from FileMaker"}
         </Button>
       </div>
 
-      {sync.isError && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          Sync failed:{" "}
-          {sync.error instanceof Error ? sync.error.message : "Unknown error"}
+      {syncProgress && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 space-y-2">
+          <div className="flex items-center justify-between text-sm text-blue-700">
+            <span>{syncProgress.label}</span>
+            <span className="font-medium tabular-nums">
+              {syncProgress.max > 0
+                ? `${Math.min(100, Math.round((syncProgress.value / syncProgress.max) * 100))}%`
+                : ""}
+            </span>
+          </div>
+          <ProgressBar value={syncProgress.value} max={syncProgress.max} />
         </div>
       )}
 
-      {sync.isSuccess && (
+      {syncState.error && (
+        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          Sync failed: {syncState.error}
+        </div>
+      )}
+
+      {syncState.lastResult && (
         <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
-          Synced {sync.data?.synced ?? 0} records from FileMaker.
+          Synced {syncState.lastResult.synced.toLocaleString()} records from FileMaker.
         </div>
       )}
 
@@ -175,8 +298,8 @@ export default function StockbookPage() {
                 No stock items yet.{" "}
                 <button
                   className="text-blue-600 hover:underline"
-                  onClick={() => sync.mutate()}
-                  disabled={sync.isPending}
+                  onClick={handleSync}
+                  disabled={syncState.active}
                 >
                   Sync from FileMaker
                 </button>{" "}

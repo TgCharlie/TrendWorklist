@@ -33,49 +33,71 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/sync", requireAuth, async (req, res): Promise<void> => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (data: object) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
   let fmRecords: Awaited<ReturnType<typeof getAllStockbook>>;
   try {
-    fmRecords = await getAllStockbook();
+    fmRecords = await getAllStockbook((fetched, total) => {
+      send({ type: "progress", phase: "fetch", fetched, total });
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker sync failed";
     logger.error({ err }, `FileMaker stockbook sync failed: ${message}`);
-    res.status(502).json({ error: message });
+    send({ type: "error", message });
+    res.end();
     return;
   }
 
   if (!fmRecords.length) {
-    res.json({ synced: 0, message: "No records returned from FileMaker StockBook layout." });
+    send({ type: "done", synced: 0, message: "No records returned from FileMaker StockBook layout." });
+    res.end();
     return;
   }
 
   const now = new Date();
+  const batchSize = 500;
+  let saved = 0;
+  const total = fmRecords.length;
 
-  await db
-    .insert(stockbookTable)
-    .values(
-      fmRecords.map((r) => ({
-        pcode: r.pcode,
-        description: r.description,
-        qtyOnHand: r.qtyOnHand,
-        unit: r.unit,
-        location: r.location,
-        lastSyncedAt: now,
-        updatedAt: now,
-      })),
-    )
-    .onConflictDoUpdate({
-      target: stockbookTable.pcode,
-      set: {
-        description: sql`excluded.description`,
-        qtyOnHand: sql`excluded.qty_on_hand`,
-        unit: sql`excluded.unit`,
-        location: sql`excluded.location`,
-        lastSyncedAt: sql`excluded.last_synced_at`,
-        updatedAt: sql`excluded.updated_at`,
-      },
-    });
+  for (let i = 0; i < fmRecords.length; i += batchSize) {
+    const batch = fmRecords.slice(i, i + batchSize);
+    await db
+      .insert(stockbookTable)
+      .values(
+        batch.map((r) => ({
+          pcode: r.pcode,
+          description: r.description,
+          qtyOnHand: r.qtyOnHand,
+          unit: r.unit,
+          location: r.location,
+          lastSyncedAt: now,
+          updatedAt: now,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: stockbookTable.pcode,
+        set: {
+          description: sql`excluded.description`,
+          qtyOnHand: sql`excluded.qty_on_hand`,
+          unit: sql`excluded.unit`,
+          location: sql`excluded.location`,
+          lastSyncedAt: sql`excluded.last_synced_at`,
+          updatedAt: sql`excluded.updated_at`,
+        },
+      });
+    saved += batch.length;
+    send({ type: "progress", phase: "save", saved, total });
+  }
 
-  res.json({ synced: fmRecords.length, syncedAt: now });
+  send({ type: "done", synced: fmRecords.length, syncedAt: now.toISOString() });
+  res.end();
 });
 
 export default router;

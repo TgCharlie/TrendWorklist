@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
-import { ilike, or } from "drizzle-orm";
-import { sql } from "drizzle-orm";
+import { like, or, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
 import { getAllStockbook } from "../lib/filemaker";
 import { logger } from "../lib/logger";
@@ -17,8 +16,8 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
         .from(stockbookTable)
         .where(
           or(
-            ilike(stockbookTable.pcode, `%${search}%`),
-            ilike(stockbookTable.description, `%${search}%`),
+            like(stockbookTable.pcode, `%${search}%`),
+            like(stockbookTable.description, `%${search}%`),
           ),
         )
         .orderBy(stockbookTable.pcode)

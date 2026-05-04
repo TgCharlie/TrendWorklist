@@ -232,7 +232,7 @@ export async function findCutlistById(cutlistId: string): Promise<Record<string,
   });
 }
 
-// StockBook layout columns: PCODE, Description, QtyOnHand, Unit
+// StockBook layout columns: PCODE, Item, QtyOnHand, Unit
 export async function getStockLevel(pcode: string): Promise<Record<string, unknown> | null> {
   return withToken(async (config, token) => {
     const layout = "StockBook";
@@ -276,12 +276,15 @@ export async function getAllStockbook(
       for (const r of records) {
         const pcode = (r.fieldData["PCODE"] as string | undefined)?.trim();
         if (!pcode) continue;
+        const item = ((r.fieldData["Item"] as string | undefined) ?? (r.fieldData["Description"] as string | undefined) ?? "").trim();
+        const unit = ((r.fieldData["Unit"] as string | undefined) ?? "").trim();
+        const location = ((r.fieldData["Location"] as string | undefined) ?? "").trim();
         results.push({
           pcode,
-          description: ((r.fieldData["Description"] as string | undefined) ?? "").trim(),
+          description: item,
           qtyOnHand: Number(r.fieldData["QtyOnHand"] ?? 0),
-          unit: (r.fieldData["Unit"] as string | undefined) ?? null,
-          location: (r.fieldData["Location"] as string | undefined) ?? null,
+          unit: unit || null,
+          location: location || null,
         });
       }
       if (onProgress) onProgress(results.length, knownTotal || results.length);

@@ -269,7 +269,7 @@ export default function StockbookPage() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by pcode or description…"
+            placeholder="Search by pcode or item…"
             className="pl-9"
           />
         </div>
@@ -325,7 +325,7 @@ export default function StockbookPage() {
             <TableHeader>
               <TableRow className="bg-zinc-50">
                 <TableHead className="w-36 font-semibold text-zinc-700">PCODE</TableHead>
-                <TableHead className="font-semibold text-zinc-700">Description</TableHead>
+                <TableHead className="font-semibold text-zinc-700">Item</TableHead>
                 <TableHead className="w-28 font-semibold text-zinc-700 text-right">
                   Qty on Hand
                 </TableHead>

@@ -38,9 +38,6 @@ win:
     - target: nsis
       arch:
         - x64
-    - target: msi
-      arch:
-        - x64
   # Place build/icon.ico (256×256) here when you have a real icon.
   # electron-builder uses a default Electron icon if the file is absent.
 

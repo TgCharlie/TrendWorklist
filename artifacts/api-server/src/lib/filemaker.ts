@@ -99,14 +99,19 @@ async function withToken<T>(fn: (config: FileMakerConfig, token: string) => Prom
   }
 }
 
-async function findRecords(
+interface FindPageResult {
+  records: FileMakerRecord[];
+  total: number;
+}
+
+async function findRecordsPage(
   config: FileMakerConfig,
   token: string,
   layout: string,
   query?: Array<Record<string, string>>,
   limit = 100,
   offset = 1,
-): Promise<FileMakerRecord[]> {
+): Promise<FindPageResult> {
   const base = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/layouts/${encodeURIComponent(layout)}`;
 
   let url: string;
@@ -134,14 +139,29 @@ async function findRecords(
   const data = (await res.json()) as FileMakerResponse;
 
   if (data.messages[0]?.code === "401") {
-    return [];
+    return { records: [], total: 0 };
   }
 
   if (!res.ok) {
     throw new Error(`FileMaker error: ${data.messages[0]?.message}`);
   }
 
-  return data.response.data ?? [];
+  return {
+    records: data.response.data ?? [],
+    total: data.response.dataInfo?.totalRecordCount ?? 0,
+  };
+}
+
+async function findRecords(
+  config: FileMakerConfig,
+  token: string,
+  layout: string,
+  query?: Array<Record<string, string>>,
+  limit = 100,
+  offset = 1,
+): Promise<FileMakerRecord[]> {
+  const { records } = await findRecordsPage(config, token, layout, query, limit, offset);
+  return records;
 }
 
 // Projects layout columns: ProjectID, Address, ClientName, Status
@@ -237,17 +257,22 @@ export interface FMStockbookRecord {
   location: string | null;
 }
 
-// Fetch all records from the FileMaker StockBook layout in batches
-export async function getAllStockbook(): Promise<FMStockbookRecord[]> {
+// Fetch all records from the FileMaker StockBook layout in batches.
+// onProgress(fetched, total) is called after each batch with running totals.
+export async function getAllStockbook(
+  onProgress?: (fetched: number, total: number) => void,
+): Promise<FMStockbookRecord[]> {
   return withToken(async (config, token) => {
     const layout = "StockBook";
     const batchSize = 1000;
     const results: FMStockbookRecord[] = [];
     let offset = 1;
+    let knownTotal = 0;
 
     while (true) {
-      const records = await findRecords(config, token, layout, undefined, batchSize, offset);
+      const { records, total } = await findRecordsPage(config, token, layout, undefined, batchSize, offset);
       if (!records.length) break;
+      if (!knownTotal && total) knownTotal = total;
       for (const r of records) {
         const pcode = (r.fieldData["PCODE"] as string | undefined)?.trim();
         if (!pcode) continue;
@@ -259,6 +284,7 @@ export async function getAllStockbook(): Promise<FMStockbookRecord[]> {
           location: (r.fieldData["Location"] as string | undefined) ?? null,
         });
       }
+      if (onProgress) onProgress(results.length, knownTotal || results.length);
       if (records.length < batchSize) break;
       offset += batchSize;
     }

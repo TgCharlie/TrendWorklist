@@ -14,9 +14,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            platform: win
-            artifact_suffix: Windows
           - os: macos-latest
             platform: mac
             artifact_suffix: macOS

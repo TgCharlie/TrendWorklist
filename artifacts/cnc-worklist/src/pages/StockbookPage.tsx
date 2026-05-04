@@ -91,6 +91,8 @@ export default function StockbookPage() {
       const decoder = new TextDecoder();
       let buffer = "";
 
+      let receivedDone = false;
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -100,7 +102,7 @@ export default function StockbookPage() {
 
         for (const part of parts) {
           const line = part.replace(/^data: /, "").trim();
-          if (!line) continue;
+          if (!line || line.startsWith(":")) continue;
           try {
             const msg = JSON.parse(line) as {
               type: string;
@@ -128,6 +130,7 @@ export default function StockbookPage() {
                 saveTotal: msg.total ?? s.saveTotal,
               }));
             } else if (msg.type === "done") {
+              receivedDone = true;
               setSyncState((s) => ({
                 ...s,
                 active: false,
@@ -149,6 +152,16 @@ export default function StockbookPage() {
           } catch {
           }
         }
+      }
+
+      if (!receivedDone) {
+        setSyncState((s) => ({
+          ...s,
+          active: false,
+          phase: null,
+          error: s.error ?? null,
+        }));
+        queryClient.invalidateQueries({ queryKey: getListStockbookQueryKey() });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Sync failed";

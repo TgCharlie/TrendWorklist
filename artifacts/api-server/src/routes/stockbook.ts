@@ -47,9 +47,9 @@ router.post("/sync", requireAuth, async (req, res): Promise<void> => {
 
   let fmRecords: Awaited<ReturnType<typeof getAllStockbook>>;
   try {
-    fmRecords = await getAllStockbook((fetched, total) => {
-      send({ type: "progress", phase: "fetch", fetched, total });
-    });
+    fmRecords = (await getAllStockbook((fetched, total) => {
+      send({ type: "progress", phase: "fetch", fetched, total: Math.min(total, 10) });
+    })).slice(0, 10);
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker sync failed";
     logger.error({ err }, `FileMaker stockbook sync failed: ${message}`);

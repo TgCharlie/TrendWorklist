@@ -268,6 +268,7 @@ export async function getAllStockbook(
     const results: FMStockbookRecord[] = [];
     let offset = 1;
     let knownTotal = 0;
+    let nextProgressAt = 50;
 
     while (true) {
       const { records, total } = await findRecordsPage(config, token, layout, undefined, batchSize, offset);
@@ -287,9 +288,20 @@ export async function getAllStockbook(
           location: location || null,
         });
       }
-      if (onProgress) onProgress(results.length, knownTotal || results.length);
+      if (onProgress) {
+        const totalForProgress = knownTotal || results.length;
+        while (results.length >= nextProgressAt || records.length < batchSize) {
+          onProgress(Math.min(results.length, nextProgressAt), totalForProgress);
+          if (results.length < nextProgressAt || records.length < batchSize) break;
+          nextProgressAt += 50;
+        }
+      }
       if (records.length < batchSize) break;
       offset += batchSize;
+    }
+
+    if (onProgress && results.length > 0 && results.length < nextProgressAt) {
+      onProgress(results.length, knownTotal || results.length);
     }
 
     return results;

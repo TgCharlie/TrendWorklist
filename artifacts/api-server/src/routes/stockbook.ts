@@ -78,23 +78,23 @@ async function syncStockbook(
   try {
     for (let i = 0; i < fmRecords.length; i += batchSize) {
       const batch = fmRecords.slice(i, i + batchSize);
+      const rows = batch.map((r) => ({
+        pcode: r.pcode,
+        description: r.description || "",
+        qtyOnHand: Number.isFinite(r.qtyOnHand) ? r.qtyOnHand : 0,
+        unit: r.unit,
+        location: r.location,
+        lastSyncedAt: now,
+        updatedAt: now,
+      }));
+
       await db
         .insert(stockbookTable)
-        .values(
-          batch.map((r) => ({
-            pcode: r.pcode,
-            description: r.description || "",
-            qtyOnHand: r.qtyOnHand,
-            unit: r.unit,
-            location: r.location,
-            lastSyncedAt: now,
-            updatedAt: now,
-          })),
-        )
+        .values(rows)
         .onConflictDoUpdate({
           target: stockbookTable.pcode,
           set: {
-            description: sql`COALESCE(excluded.description, '')`,
+            description: sql`excluded.description`,
             qtyOnHand: sql`excluded.qty_on_hand`,
             unit: sql`excluded.unit`,
             location: sql`excluded.location`,
@@ -102,6 +102,7 @@ async function syncStockbook(
             updatedAt: sql`excluded.updated_at`,
           },
         });
+
       saved += batch.length;
       send({ type: "progress", phase: "save", saved, total });
     }

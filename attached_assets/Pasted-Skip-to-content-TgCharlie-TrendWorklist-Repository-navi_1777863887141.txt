@@ -1,0 +1,85 @@
+Skip to content
+TgCharlie
+TrendWorklist
+Repository navigation
+Code
+Issues
+Pull requests
+Agents
+Actions
+Projects
+Security and quality
+Insights
+Settings
+Build and Release
+ci: use --no-frozen-lockfile to fix optional deps on macOS arm64 #6
+All jobs
+Run details
+Annotations
+1 error and 1 warning
+Build (macOS)
+failed 1 minute ago in 50s
+Search logs
+2s
+2s
+1s
+1s
+40s
+0s
+Run pnpm --filter @workspace/cnc-worklist run build
+  pnpm --filter @workspace/cnc-worklist run build
+  shell: /bin/bash -e {0}
+  env:
+    PNPM_HOME: /Users/runner/setup-pnpm/node_modules/.bin
+    PORT: 1
+    BASE_PATH: /
+    NODE_ENV: production
+
+> @workspace/cnc-worklist@0.0.0 build /Users/runner/work/TrendWorklist/TrendWorklist/artifacts/cnc-worklist
+> vite build --config vite.config.ts
+
+/Users/runner/work/TrendWorklist/TrendWorklist/node_modules/.pnpm/rollup@4.59.0/node_modules/rollup/dist/native.js:115
+		throw new Error(
+		      ^
+
+Error: Cannot find module @rollup/rollup-darwin-arm64. npm has a bug related to optional dependencies (https://github.com/npm/cli/issues/4828). Please try `npm i` again after removing both package-lock.json and node_modules directory.
+    at requireWithFriendlyError (/Users/runner/work/TrendWorklist/TrendWorklist/node_modules/.pnpm/rollup@4.59.0/node_modules/rollup/dist/native.js:115:9)
+    at Object.<anonymous> (/Users/runner/work/TrendWorklist/TrendWorklist/node_modules/.pnpm/rollup@4.59.0/node_modules/rollup/dist/native.js:124:76)
+    ... 3 lines matching cause stack trace ...
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+    at cjsLoader (node:internal/modules/esm/translators:298:15)
+    at ModuleWrap.<anonymous> (node:internal/modules/esm/translators:240:7)
+    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)
+    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24) {
+  [cause]: Error: Cannot find module '@rollup/rollup-darwin-arm64'
+  Require stack:
+  - /Users/runner/work/TrendWorklist/TrendWorklist/node_modules/.pnpm/rollup@4.59.0/node_modules/rollup/dist/native.js
+      at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+      at Module._load (node:internal/modules/cjs/loader:1038:27)
+      at Module.require (node:internal/modules/cjs/loader:1289:19)
+      at require (node:internal/modules/helpers:182:18)
+      at requireWithFriendlyError (/Users/runner/work/TrendWorklist/TrendWorklist/node_modules/.pnpm/rollup@4.59.0/node_modules/rollup/dist/native.js:97:10)
+      at Object.<anonymous> (/Users/runner/work/TrendWorklist/TrendWorklist/node_modules/.pnpm/rollup@4.59.0/node_modules/rollup/dist/native.js:124:76)
+      at Module._compile (node:internal/modules/cjs/loader:1521:14)
+      at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+      at Module.load (node:internal/modules/cjs/loader:1266:32)
+      at Module._load (node:internal/modules/cjs/loader:1091:12) {
+    code: 'MODULE_NOT_FOUND',
+    requireStack: [
+      '/Users/runner/work/TrendWorklist/TrendWorklist/node_modules/.pnpm/rollup@4.59.0/node_modules/rollup/dist/native.js'
+    ]
+  }
+}
+
+Node.js v20.20.2
+/Users/runner/work/TrendWorklist/TrendWorklist/artifacts/cnc-worklist:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/cnc-worklist@0.0.0 build: `vite build --config vite.config.ts`
+Exit status 1
+0s
+0s
+0s
+0s
+0s
+0s
+1s
+1s

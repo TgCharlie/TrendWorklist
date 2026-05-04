@@ -83,7 +83,7 @@ async function syncStockbook(
         .values(
           batch.map((r) => ({
             pcode: r.pcode,
-            description: r.description,
+            description: r.description || "",
             qtyOnHand: r.qtyOnHand,
             unit: r.unit,
             location: r.location,
@@ -94,7 +94,7 @@ async function syncStockbook(
         .onConflictDoUpdate({
           target: stockbookTable.pcode,
           set: {
-            description: sql`excluded.description`,
+            description: sql`COALESCE(excluded.description, '')`,
             qtyOnHand: sql`excluded.qty_on_hand`,
             unit: sql`excluded.unit`,
             location: sql`excluded.location`,

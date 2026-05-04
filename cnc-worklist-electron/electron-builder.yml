@@ -1,25 +1,31 @@
 appId: com.cncworklistmanager.app
 productName: CNC Worklist Manager
-copyright: Copyright © 2024 Your Company Name
+copyright: Copyright © 2024 Trendgosa
 
 directories:
   buildResources: build
   output: dist
 
+# Files packed into app.asar (JS only — no native binaries, no static assets)
 files:
   - main.js
   - preload.js
   - package.json
-  - config.json
-  - node_modules/**/*
+  - api/**
+  - node_modules/**
 
-# Runtime assets — copied to process.resourcesPath in packaged builds.
-# Place icon files in build/ before releasing:
-#   build/icon.ico      — Windows app & installer icon (256×256 ICO)
-#   build/icon.icns     — macOS app icon (512×512 ICNS)
-#   build/tray-icon.png — Windows system tray icon (16×16 or 32×32 PNG)
-# If absent, electron-builder falls back to the default Electron icon.
+# Native modules must live outside the asar so Node can load the .node binary
+asarUnpack:
+  - "node_modules/better-sqlite3/**"
+  - "node_modules/bindings/**"
+  - "node_modules/file-uri-to-path/**"
+  - "**/*.node"
+
+# Resources placed outside the asar at process.resourcesPath
+# Frontend static files must be outside asar so Express can serve them
 extraResources:
+  - from: dist/frontend/
+    to: frontend/
   - from: build/
     to: build/
     filter:
@@ -32,9 +38,8 @@ win:
     - target: nsis
       arch:
         - x64
-    - target: msi
-      arch:
-        - x64
+  # Place build/icon.ico (256×256) here when you have a real icon.
+  # electron-builder uses a default Electron icon if the file is absent.
 
 nsis:
   oneClick: false
@@ -42,10 +47,6 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: CNC Worklist Manager
-
-msi:
-  oneClick: false
-  perMachine: false
 
 mac:
   target:
@@ -58,6 +59,7 @@ mac:
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  # Place build/icon.icns here when you have a real icon.
 
 dmg:
   title: "CNC Worklist Manager"
@@ -68,11 +70,3 @@ dmg:
       y: 220
       type: link
       path: /Applications
-
-# owner/repo are auto-detected from the git remote and the GITHUB_REPOSITORY
-# environment variable (set automatically by GitHub Actions).
-publish:
-  provider: github
-  releaseType: release
-
-autoUpdatable: true

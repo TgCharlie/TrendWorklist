@@ -8,59 +8,108 @@ const {
   Menu,
   nativeImage,
 } = require("electron");
-const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
-
-// Load .env for local development (no-op in packaged builds)
-require("dotenv").config();
-
-function getWebappUrl() {
-  // 1. config.json — written by CI at build time and bundled into the installer
-  try {
-    const configPath = path.join(__dirname, "config.json");
-    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    if (config.webappUrl && config.webappUrl.startsWith("http")) {
-      return config.webappUrl;
-    }
-  } catch (_) {}
-
-  // 2. WEBAPP_URL env var — for local development via .env
-  if (process.env.WEBAPP_URL) return process.env.WEBAPP_URL;
-
-  return "https://your-deployed-app.replit.app";
-}
-
-const WEBAPP_URL = getWebappUrl();
-
-// In packaged builds, runtime assets live in process.resourcesPath.
-// In development, they live next to main.js.
-function getAssetPath(relativePath) {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, relativePath);
-  }
-  return path.join(__dirname, relativePath);
-}
+const net = require("net");
+const http = require("http");
+const crypto = require("crypto");
 
 let mainWindow;
 let tray = null;
+let apiPort = null;
 
-// Create a solid blue 16x16 icon as a guaranteed visible fallback when
-// build/tray-icon.png is not present (raw BGRA pixel data).
+// ─── Asset path helper ────────────────────────────────────────────────────────
+function getAssetPath(...parts) {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, ...parts);
+  }
+  return path.join(__dirname, ...parts);
+}
+
+// ─── Find a free TCP port ─────────────────────────────────────────────────────
+function findFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.listen(0, "127.0.0.1", () => {
+      const port = srv.address().port;
+      srv.close(() => resolve(port));
+    });
+    srv.on("error", reject);
+  });
+}
+
+// ─── Poll until /api/health responds ─────────────────────────────────────────
+function waitForServer(port, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs;
+    function attempt() {
+      const req = http.get(
+        { host: "127.0.0.1", port, path: "/api/health", timeout: 800 },
+        (res) => {
+          if (res.statusCode < 500) {
+            resolve();
+          } else {
+            retry();
+          }
+        },
+      );
+      req.on("error", retry);
+      req.on("timeout", () => { req.destroy(); retry(); });
+    }
+    function retry() {
+      if (Date.now() > deadline) {
+        reject(new Error("API server did not start within timeout"));
+        return;
+      }
+      setTimeout(attempt, 300);
+    }
+    attempt();
+  });
+}
+
+// ─── Start the bundled API server in-process ──────────────────────────────────
+async function startApiServer() {
+  const port = await findFreePort();
+
+  const dbPath = path.join(app.getPath("userData"), "cnc-worklist.db");
+  const frontendPath = app.isPackaged
+    ? path.join(process.resourcesPath, "frontend")
+    : path.join(__dirname, "dist", "frontend");
+
+  // Set env before requiring the bundle (it reads process.env at module load)
+  process.env.PORT = String(port);
+  process.env.SQLITE_DB_PATH = dbPath;
+  process.env.SESSION_SECRET = crypto.randomBytes(32).toString("hex");
+  process.env.NODE_ENV = "production";
+  process.env.ELECTRON_FRONTEND_STATIC = frontendPath;
+
+  const apiBundle = path.join(__dirname, "api", "electron-index.js");
+
+  // Ensure the bundle exists before requiring it
+  if (!fs.existsSync(apiBundle)) {
+    throw new Error(
+      `API bundle not found at ${apiBundle}. Run 'node build-api.mjs' first.`,
+    );
+  }
+
+  require(apiBundle);
+
+  await waitForServer(port);
+  return port;
+}
+
+// ─── Tray icon ────────────────────────────────────────────────────────────────
 function createFallbackTrayIcon() {
   const size = 16;
   const buf = Buffer.alloc(size * size * 4);
   for (let i = 0; i < buf.length; i += 4) {
-    buf[i] = 60;      // B
-    buf[i + 1] = 120; // G
-    buf[i + 2] = 200; // R  (steel blue)
-    buf[i + 3] = 255; // A  (fully opaque)
+    buf[i] = 60; buf[i + 1] = 120; buf[i + 2] = 200; buf[i + 3] = 255;
   }
   return nativeImage.createFromBitmap(buf, { width: size, height: size });
 }
 
 function createTray() {
-  const iconPath = getAssetPath(path.join("build", "tray-icon.png"));
+  const iconPath = getAssetPath("build", "tray-icon.png");
   const trayIcon = fs.existsSync(iconPath)
     ? nativeImage.createFromPath(iconPath)
     : createFallbackTrayIcon();
@@ -71,34 +120,21 @@ function createTray() {
   const contextMenu = Menu.buildFromTemplate([
     {
       label: "Show CNC Worklist Manager",
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-      },
+      click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } },
     },
     { type: "separator" },
     {
       label: "Quit",
-      click: () => {
-        app.isQuitting = true;
-        app.quit();
-      },
+      click: () => { app.isQuitting = true; app.quit(); },
     },
   ]);
 
   tray.setContextMenu(contextMenu);
-
-  tray.on("double-click", () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
+  tray.on("double-click", () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } });
 }
 
-function createWindow() {
+// ─── Browser window ───────────────────────────────────────────────────────────
+function createWindow(port) {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -113,7 +149,7 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadURL(WEBAPP_URL);
+  mainWindow.loadURL(`http://127.0.0.1:${port}/`);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -122,23 +158,19 @@ function createWindow() {
 
   if (process.platform === "win32") {
     mainWindow.on("close", (e) => {
-      if (!app.isQuitting) {
-        e.preventDefault();
-        mainWindow.hide();
-      }
+      if (!app.isQuitting) { e.preventDefault(); mainWindow.hide(); }
     });
   }
 }
 
+// ─── IPC: save CSV via native dialog ─────────────────────────────────────────
 ipcMain.handle("save-csv", async (_event, { csvContent, suggestedFilename }) => {
   const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
     title: "Save CSV",
     defaultPath: suggestedFilename,
     filters: [{ name: "CSV Files", extensions: ["csv"] }],
   });
-
   if (canceled || !filePath) return { success: false, canceled: true };
-
   try {
     fs.writeFileSync(filePath, csvContent, "utf8");
     return { success: true, filePath };
@@ -147,62 +179,56 @@ ipcMain.handle("save-csv", async (_event, { csvContent, suggestedFilename }) => 
   }
 });
 
-app.whenReady().then(() => {
-  createWindow();
+// ─── App lifecycle ────────────────────────────────────────────────────────────
+app.whenReady().then(async () => {
+  // Show a loading window while the API server starts
+  const splash = new BrowserWindow({
+    width: 400,
+    height: 200,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    webPreferences: { contextIsolation: true },
+  });
+  splash.loadURL(
+    "data:text/html," +
+      encodeURIComponent(
+        `<html><body style="margin:0;display:flex;align-items:center;justify-content:center;
+         height:100vh;background:#18181b;font-family:system-ui;color:#a1a1aa;font-size:14px;">
+         <div><div style="color:#fff;font-size:18px;font-weight:600;margin-bottom:8px;">
+         CNC Worklist Manager</div>Starting local server…</div></body></html>`,
+      ),
+  );
+
+  try {
+    apiPort = await startApiServer();
+  } catch (err) {
+    dialog.showErrorBox(
+      "Startup Error",
+      `Failed to start the local server:\n\n${err.message}\n\nThe application will now exit.`,
+    );
+    app.quit();
+    return;
+  }
+
+  splash.close();
+
+  createWindow(apiPort);
 
   if (process.platform === "win32") {
     createTray();
   }
 
-  autoUpdater.checkForUpdatesAndNotify();
-
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(apiPort);
   });
 });
 
 app.on("before-quit", () => {
   app.isQuitting = true;
-  if (tray) {
-    tray.destroy();
-    tray = null;
-  }
+  if (tray) { tray.destroy(); tray = null; }
 });
 
-// Quit when all windows are closed on any platform.
-// On Windows this only fires when the user explicitly quits from the tray menu
-// (because closing the window hides it to the tray rather than closing it).
-// On macOS this fires when the user clicks the red close button, satisfying
-// the "close to tray on Windows, quit on macOS" requirement.
 app.on("window-all-closed", () => {
   app.quit();
-});
-
-autoUpdater.on("update-available", (info) => {
-  dialog.showMessageBox(mainWindow, {
-    type: "info",
-    title: "Update Available",
-    message: `Version ${info.version} is available and is being downloaded in the background.`,
-    buttons: ["OK"],
-  });
-});
-
-autoUpdater.on("update-downloaded", () => {
-  dialog.showMessageBox(mainWindow, {
-    type: "info",
-    title: "Update Ready",
-    message:
-      "A new version has been downloaded. Restart the application to apply the update.",
-    buttons: ["Restart Now", "Later"],
-    defaultId: 0,
-    cancelId: 1,
-  }).then(({ response }) => {
-    if (response === 0) {
-      autoUpdater.quitAndInstall();
-    }
-  });
-});
-
-autoUpdater.on("error", (err) => {
-  console.error("Auto-updater error:", err.message);
 });

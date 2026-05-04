@@ -14,6 +14,14 @@ const net = require("net");
 const http = require("http");
 const crypto = require("crypto");
 
+// undici (used by the API bundle for FileMaker SSL bypass) calls
+// v8.markAsUncloneable which was added in Node 22. Electron 32 ships
+// Node 20, so we polyfill it here before requiring the bundle.
+const v8 = require("v8");
+if (typeof v8.markAsUncloneable !== "function") {
+  v8.markAsUncloneable = () => {};
+}
+
 let mainWindow;
 let tray = null;
 let apiPort = null;

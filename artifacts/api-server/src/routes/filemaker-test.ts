@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAdmin } from "../lib/auth-middleware";
 import { getSetting } from "../lib/settings";
-import { Agent } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 
 const router = Router();
 
@@ -43,7 +43,7 @@ router.get("/test", requireAdmin, async (req, res): Promise<void> => {
       ? new Agent({ connect: { rejectUnauthorized: false } })
       : undefined;
 
-    const reachRes = await fetch(`${serverUrl}/fmi/data/vLatest`, {
+    const reachRes = await undiciFetch(`${serverUrl}/fmi/data/vLatest`, {
       method: "GET",
       signal: AbortSignal.timeout(8000),
       ...(dispatcher ? { dispatcher } : {}),
@@ -75,7 +75,7 @@ router.get("/test", requireAdmin, async (req, res): Promise<void> => {
     const authUrl = `${serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(database)}/sessions`;
     const credentials = Buffer.from(`${username}:${password}`).toString("base64");
 
-    const authRes = await fetch(authUrl, {
+    const authRes = await undiciFetch(authUrl, {
       method: "POST",
       headers: {
         Authorization: `Basic ${credentials}`,
@@ -127,7 +127,7 @@ router.get("/test", requireAdmin, async (req, res): Promise<void> => {
       : undefined;
 
     const layoutUrl = `${serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(database)}/layouts/StockBook/records?_limit=1`;
-    const layoutRes = await fetch(layoutUrl, {
+    const layoutRes = await undiciFetch(layoutUrl, {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(10000),
@@ -158,7 +158,7 @@ router.get("/test", requireAdmin, async (req, res): Promise<void> => {
     }
 
     // Release token
-    await fetch(
+    await undiciFetch(
       `${serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(database)}/sessions/${token}`,
       {
         method: "DELETE",

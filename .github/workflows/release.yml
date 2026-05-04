@@ -17,6 +17,9 @@ jobs:
           - os: windows-latest
             platform: win
             artifact_suffix: Windows
+          - os: macos-latest
+            platform: mac
+            artifact_suffix: macOS
 
     runs-on: ${{ matrix.os }}
     name: Build (${{ matrix.artifact_suffix }})

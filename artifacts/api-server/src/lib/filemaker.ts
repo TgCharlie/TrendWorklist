@@ -1,4 +1,4 @@
-import { Agent, type Dispatcher } from "undici";
+import { Agent, fetch as undiciFetch, type Dispatcher } from "undici";
 import { getSetting } from "./settings";
 
 interface FileMakerConfig {
@@ -52,7 +52,7 @@ async function acquireToken(config: FileMakerConfig): Promise<string> {
   const url = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/sessions`;
   const credentials = Buffer.from(`${config.username}:${config.password}`).toString("base64");
   const dispatcher = makeAgent(config.allowSelfSigned);
-  const res = await fetch(url, {
+  const res = await undiciFetch(url, {
     method: "POST",
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -75,7 +75,7 @@ async function releaseToken(config: FileMakerConfig, token: string): Promise<voi
   try {
     const url = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/sessions/${token}`;
     const dispatcher = makeAgent(config.allowSelfSigned);
-    await fetch(url, {
+    await undiciFetch(url, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
       ...(dispatcher ? { dispatcher } : {}),
@@ -132,7 +132,7 @@ async function findRecords(
     } as RequestInit;
   }
 
-  const res = await fetch(url, options);
+  const res = await undiciFetch(url, options);
   const data = (await res.json()) as FileMakerResponse;
 
   if (data.messages[0]?.code === "401") {

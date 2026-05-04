@@ -62,6 +62,11 @@ await esbuild({
   define: {
     "process.env.NODE_ENV": '"production"',
   },
+  banner: {
+    js: `// Polyfill: v8.markAsUncloneable was added in Node 22; Electron 32 ships Node 20.
+// Patch it before undici initialises so webidl.util.markAsUncloneable is a function.
+try { const _v8 = require('v8'); if (typeof _v8.markAsUncloneable !== 'function') _v8.markAsUncloneable = () => {}; } catch (_) {}`,
+  },
   plugins: [esbuildPluginPino({ transports: ["pino-pretty"] })],
 });
 

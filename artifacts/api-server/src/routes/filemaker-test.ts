@@ -1,7 +1,18 @@
 import { Router } from "express";
 import { requireAdmin } from "../lib/auth-middleware";
 import { getSetting } from "../lib/settings";
-import { Agent, fetch as undiciFetch } from "undici";
+
+async function sslFetch(allowSelfSigned: boolean, url: string, init?: RequestInit): Promise<Response> {
+  if (!allowSelfSigned) return fetch(url, init);
+  const prev = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  try {
+    return await fetch(url, init);
+  } finally {
+    if (prev === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+    else process.env.NODE_TLS_REJECT_UNAUTHORIZED = prev;
+  }
+}
 
 const router = Router();
 
@@ -37,18 +48,11 @@ router.get("/test", requireAdmin, async (req, res): Promise<void> => {
     return;
   }
 
-  // 2. DNS / network reachability via fetch (just HEAD on root)
+  // 2. Network reachability
   try {
-    const dispatcher = allowSelfSigned
-      ? new Agent({ connect: { rejectUnauthorized: false } })
-      : undefined;
-
-    const reachRes = await undiciFetch(`${serverUrl}/fmi/data/vLatest`, {
+    const reachRes = await sslFetch(allowSelfSigned, `${serverUrl}/fmi/data/vLatest`, {
       method: "GET",
-      signal: AbortSignal.timeout(8000),
-      ...(dispatcher ? { dispatcher } : {}),
-    } as RequestInit);
-
+    });
     steps.push({
       step: "Reach FileMaker Data API base URL",
       ok: true,
@@ -56,11 +60,7 @@ router.get("/test", requireAdmin, async (req, res): Promise<void> => {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    steps.push({
-      step: "Reach FileMaker Data API base URL",
-      ok: false,
-      detail: msg,
-    });
+    steps.push({ step: "Reach FileMaker Data API base URL", ok: false, detail: msg });
     res.json({ ok: false, steps });
     return;
   }
@@ -68,23 +68,17 @@ router.get("/test", requireAdmin, async (req, res): Promise<void> => {
   // 3. Authenticate (get token)
   let token: string | null = null;
   try {
-    const dispatcher = allowSelfSigned
-      ? new Agent({ connect: { rejectUnauthorized: false } })
-      : undefined;
-
     const authUrl = `${serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(database)}/sessions`;
     const credentials = Buffer.from(`${username}:${password}`).toString("base64");
 
-    const authRes = await undiciFetch(authUrl, {
+    const authRes = await sslFetch(allowSelfSigned, authUrl, {
       method: "POST",
       headers: {
         Authorization: `Basic ${credentials}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({}),
-      signal: AbortSignal.timeout(10000),
-      ...(dispatcher ? { dispatcher } : {}),
-    } as RequestInit);
+    });
 
     const authText = await authRes.text();
 
@@ -122,17 +116,11 @@ router.get("/test", requireAdmin, async (req, res): Promise<void> => {
 
   // 4. Hit StockBook layout (fetch 1 record)
   try {
-    const dispatcher = allowSelfSigned
-      ? new Agent({ connect: { rejectUnauthorized: false } })
-      : undefined;
-
     const layoutUrl = `${serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(database)}/layouts/StockBook/records?_limit=1`;
-    const layoutRes = await undiciFetch(layoutUrl, {
+    const layoutRes = await sslFetch(allowSelfSigned, layoutUrl, {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(10000),
-      ...(dispatcher ? { dispatcher } : {}),
-    } as RequestInit);
+    });
 
     const layoutText = await layoutRes.text();
     const parsed = JSON.parse(layoutText) as {
@@ -158,14 +146,10 @@ router.get("/test", requireAdmin, async (req, res): Promise<void> => {
     }
 
     // Release token
-    await undiciFetch(
-      `${serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(database)}/sessions/${token}`,
-      {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-        ...(dispatcher ? { dispatcher } : {}),
-      } as RequestInit,
-    ).catch(() => {});
+    sslFetch(allowSelfSigned, `${serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(database)}/sessions/${token}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {});
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     steps.push({ step: "Access StockBook layout", ok: false, detail: msg });

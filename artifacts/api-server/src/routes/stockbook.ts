@@ -71,37 +71,37 @@ async function syncStockbook(
   }
 
   const now = new Date();
-  const batchSize = 500;
+  const batchSize = 100;
   let saved = 0;
   const total = fmRecords.length;
 
   try {
     for (let i = 0; i < fmRecords.length; i += batchSize) {
       const batch = fmRecords.slice(i, i + batchSize);
-      const rows = batch.map((r) => ({
-        pcode: r.pcode,
-        description: r.description || "",
-        qtyOnHand: Number.isFinite(r.qtyOnHand) ? r.qtyOnHand : 0,
-        unit: r.unit,
-        location: r.location,
-        lastSyncedAt: now,
-        updatedAt: now,
-      }));
-
-      await db
-        .insert(stockbookTable)
-        .values(rows)
-        .onConflictDoUpdate({
-          target: stockbookTable.pcode,
-          set: {
-            description: sql`excluded.description`,
-            qtyOnHand: sql`excluded.qty_on_hand`,
-            unit: sql`excluded.unit`,
-            location: sql`excluded.location`,
-            lastSyncedAt: sql`excluded.last_synced_at`,
-            updatedAt: sql`excluded.updated_at`,
-          },
-        });
+      for (const r of batch) {
+        await db
+          .insert(stockbookTable)
+          .values({
+            pcode: r.pcode,
+            description: r.description || "",
+            qtyOnHand: Number.isFinite(r.qtyOnHand) ? r.qtyOnHand : 0,
+            unit: r.unit,
+            location: r.location,
+            lastSyncedAt: now,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: stockbookTable.pcode,
+            set: {
+              description: sql`excluded.description`,
+              qtyOnHand: sql`excluded.qty_on_hand`,
+              unit: sql`excluded.unit`,
+              location: sql`excluded.location`,
+              lastSyncedAt: sql`excluded.last_synced_at`,
+              updatedAt: sql`excluded.updated_at`,
+            },
+          });
+      }
 
       saved += batch.length;
       send({ type: "progress", phase: "save", saved, total });

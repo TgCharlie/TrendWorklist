@@ -42,7 +42,6 @@ await esbuild({
     "bufferutil",
     "utf-8-validate",
     "electron",
-    "undici",
     "node:http",
     "node:https",
     "node:net",

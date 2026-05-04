@@ -62,6 +62,7 @@ mac:
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
   # Place build/icon.icns here when you have a real icon.
 
 dmg:

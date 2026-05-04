@@ -73,11 +73,11 @@ export default function StockbookPage() {
     },
   });
 
-  const handleSync = async () => {
+  const handleSync = async (full = false) => {
     setSyncState({ ...idleSyncState, active: true, phase: "fetch" });
 
     try {
-      const res = await fetch(`${API_BASE}/stockbook/sync`, {
+      const res = await fetch(`${API_BASE}/stockbook/${full ? "sync/full" : "sync"}`, {
         method: "POST",
         credentials: "include",
       });
@@ -204,7 +204,7 @@ export default function StockbookPage() {
         </div>
 
         <Button
-          onClick={handleSync}
+          onClick={() => handleSync()}
           disabled={syncState.active}
           className="shrink-0 bg-blue-600 hover:bg-blue-700"
         >
@@ -221,7 +221,15 @@ export default function StockbookPage() {
               d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
             />
           </svg>
-          {syncState.active ? "Syncing…" : "Sync from FileMaker"}
+          {syncState.active ? "Syncing…" : "Quick sync"}
+        </Button>
+        <Button
+          onClick={() => handleSync(true)}
+          disabled={syncState.active}
+          variant="outline"
+          className="shrink-0"
+        >
+          Full sync
         </Button>
       </div>
 
@@ -311,10 +319,10 @@ export default function StockbookPage() {
                 No stock items yet.{" "}
                 <button
                   className="text-blue-600 hover:underline"
-                  onClick={handleSync}
+                  onClick={() => handleSync()}
                   disabled={syncState.active}
                 >
-                  Sync from FileMaker
+                  Quick sync
                 </button>{" "}
                 to populate this table.
               </>

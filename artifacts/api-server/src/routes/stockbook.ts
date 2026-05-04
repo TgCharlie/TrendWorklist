@@ -32,7 +32,11 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
   res.json({ items: rows, lastSyncedAt: lastSynced, total: rows.length });
 });
 
-router.post("/sync", requireAuth, async (req, res): Promise<void> => {
+async function syncStockbook(
+  req: Parameters<typeof requireAuth>[0],
+  res: Parameters<typeof requireAuth>[1],
+  progressInterval = 50,
+): Promise<void> {
   (req.socket as { setNoDelay?: (v: boolean) => void } | null)?.setNoDelay?.(true);
 
   res.setHeader("Content-Type", "text/event-stream");
@@ -48,7 +52,9 @@ router.post("/sync", requireAuth, async (req, res): Promise<void> => {
   let fmRecords: Awaited<ReturnType<typeof getAllStockbook>>;
   try {
     fmRecords = await getAllStockbook((fetched, total) => {
-      send({ type: "progress", phase: "fetch", fetched, total });
+      if (progressInterval <= 1 || fetched % progressInterval === 0 || fetched === total) {
+        send({ type: "progress", phase: "fetch", fetched, total });
+      }
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker sync failed";
@@ -109,6 +115,14 @@ router.post("/sync", requireAuth, async (req, res): Promise<void> => {
 
   send({ type: "done", synced: fmRecords.length, syncedAt: now.toISOString() });
   res.end();
+}
+
+router.post("/sync", requireAuth, async (req, res): Promise<void> => {
+  await syncStockbook(req, res, 50);
+});
+
+router.post("/sync/full", requireAuth, async (req, res): Promise<void> => {
+  await syncStockbook(req, res, 1);
 });
 
 export default router;

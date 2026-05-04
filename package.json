@@ -17,6 +17,10 @@
     "@rollup/rollup-darwin-arm64": "*",
     "@rollup/rollup-darwin-x64": "*",
     "@rollup/rollup-linux-x64-gnu": "*",
-    "@rollup/rollup-win32-x64-msvc": "*"
+    "@rollup/rollup-win32-x64-msvc": "*",
+    "lightningcss-darwin-arm64": "*",
+    "lightningcss-darwin-x64": "*",
+    "lightningcss-linux-x64-gnu": "*",
+    "lightningcss-win32-x64-msvc": "*"
   }
 }

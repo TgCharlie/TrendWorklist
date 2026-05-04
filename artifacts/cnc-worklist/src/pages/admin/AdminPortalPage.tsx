@@ -39,8 +39,20 @@ interface Settings {
   filemaker_database: string;
   filemaker_username: string;
   filemaker_password: string;
+  filemaker_allow_self_signed: string;
   csv_server_path: string;
   worklist_start_number: string;
+}
+
+interface TestStep {
+  step: string;
+  ok: boolean;
+  detail: string;
+}
+
+interface TestResult {
+  ok: boolean;
+  steps: TestStep[];
 }
 
 interface NextNumber {
@@ -294,6 +306,7 @@ function useSettingsForm() {
     filemaker_database: "",
     filemaker_username: "",
     filemaker_password: "",
+    filemaker_allow_self_signed: "false",
     csv_server_path: "",
     worklist_start_number: "1",
   });
@@ -336,6 +349,8 @@ function useSettingsForm() {
 function FileMakerTab() {
   const { form, setForm, settings, isLoading, saveMutation } = useSettingsForm();
   const [showPassword, setShowPassword] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [testing, setTesting] = useState(false);
 
   if (isLoading) return <div className="text-zinc-400 text-center py-12">Loading…</div>;
 
@@ -344,9 +359,23 @@ function FileMakerTab() {
       filemaker_server_url: form.filemaker_server_url,
       filemaker_database: form.filemaker_database,
       filemaker_username: form.filemaker_username,
+      filemaker_allow_self_signed: form.filemaker_allow_self_signed,
     };
     if (form.filemaker_password) updates.filemaker_password = form.filemaker_password;
     saveMutation.mutate(updates);
+  }
+
+  async function handleTest() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await apiFetch<TestResult>("/filemaker/test");
+      setTestResult(result);
+    } catch (err) {
+      setTestResult({ ok: false, steps: [{ step: "Request failed", ok: false, detail: err instanceof Error ? err.message : String(err) }] });
+    } finally {
+      setTesting(false);
+    }
   }
 
   return (
@@ -414,10 +443,78 @@ function FileMakerTab() {
               </div>
             </div>
           </div>
+
+          <div className="flex items-start gap-2 pt-1">
+            <input
+              id="allow-self-signed"
+              type="checkbox"
+              checked={form.filemaker_allow_self_signed === "true"}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  filemaker_allow_self_signed: e.target.checked ? "true" : "false",
+                }))
+              }
+              className="w-4 h-4 mt-0.5 accent-blue-600 shrink-0"
+            />
+            <div>
+              <Label htmlFor="allow-self-signed" className="text-zinc-700 text-sm cursor-pointer">
+                Allow self-signed / mismatched SSL certificate
+              </Label>
+              <p className="text-zinc-500 text-xs mt-0.5">
+                Enable if your FileMaker server uses a self-signed certificate or one that doesn't match its hostname.
+              </p>
+            </div>
+          </div>
         </div>
       </Card>
 
-      <div className="flex justify-end">
+      {testResult && (
+        <Card className={`border p-5 ${testResult.ok ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+          <h3 className={`font-semibold text-sm mb-3 ${testResult.ok ? "text-green-800" : "text-red-800"}`}>
+            {testResult.ok ? "Connection successful" : "Connection failed"}
+          </h3>
+          <div className="space-y-2">
+            {testResult.steps.map((s, i) => (
+              <div key={i} className="flex items-start gap-2">
+                <span className={`mt-0.5 shrink-0 ${s.ok ? "text-green-500" : "text-red-500"}`}>
+                  {s.ok ? (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                </span>
+                <div>
+                  <p className={`text-sm font-medium ${s.ok ? "text-green-800" : "text-red-800"}`}>{s.step}</p>
+                  <p className={`text-xs font-mono break-all ${s.ok ? "text-green-700" : "text-red-700"}`}>{s.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <div className="flex justify-end gap-3">
+        <Button
+          onClick={handleTest}
+          disabled={testing}
+          variant="outline"
+          className="border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+        >
+          {testing ? (
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Testing…
+            </span>
+          ) : "Test Connection"}
+        </Button>
         <Button onClick={handleSave} disabled={saveMutation.isPending} className="bg-blue-600 hover:bg-blue-700 min-w-28">
           {saveMutation.isPending ? "Saving…" : "Save FileMaker Settings"}
         </Button>

@@ -9,6 +9,7 @@ import worklistsRouter from "./worklists";
 import foldersRouter from "./folders";
 import settingsRouter from "./settings";
 import usersRouter from "./users";
+import filemakerTestRouter from "./filemaker-test";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use("/worklists", worklistsRouter);
 router.use("/folders", foldersRouter);
 router.use("/settings", settingsRouter);
 router.use("/users", usersRouter);
+router.use("/filemaker", filemakerTestRouter);
 
 export default router;

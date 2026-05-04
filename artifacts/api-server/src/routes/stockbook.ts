@@ -4,6 +4,7 @@ import { ilike, or } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
 import { getAllStockbook } from "../lib/filemaker";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -38,6 +39,7 @@ router.post("/sync", requireAuth, async (req, res): Promise<void> => {
     fmRecords = await getAllStockbook();
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker sync failed";
+    logger.error({ err }, `FileMaker stockbook sync failed: ${message}`);
     res.status(502).json({ error: message });
     return;
   }

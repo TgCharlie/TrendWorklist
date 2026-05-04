@@ -1,4 +1,3 @@
-import { Agent, fetch as undiciFetch, type Dispatcher } from "undici";
 import { getSetting } from "./settings";
 
 interface FileMakerConfig {
@@ -9,9 +8,16 @@ interface FileMakerConfig {
   allowSelfSigned: boolean;
 }
 
-function makeAgent(allowSelfSigned: boolean): Dispatcher | undefined {
-  if (!allowSelfSigned) return undefined;
-  return new Agent({ connect: { rejectUnauthorized: false } });
+async function sslFetch(allowSelfSigned: boolean, url: string, init?: RequestInit): Promise<Response> {
+  if (!allowSelfSigned) return fetch(url, init);
+  const prev = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  try {
+    return await fetch(url, init);
+  } finally {
+    if (prev === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+    else process.env.NODE_TLS_REJECT_UNAUTHORIZED = prev;
+  }
 }
 
 interface FileMakerRecord {
@@ -51,16 +57,14 @@ async function getConfig(): Promise<FileMakerConfig> {
 async function acquireToken(config: FileMakerConfig): Promise<string> {
   const url = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/sessions`;
   const credentials = Buffer.from(`${config.username}:${config.password}`).toString("base64");
-  const dispatcher = makeAgent(config.allowSelfSigned);
-  const res = await undiciFetch(url, {
+  const res = await sslFetch(config.allowSelfSigned, url, {
     method: "POST",
     headers: {
       Authorization: `Basic ${credentials}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({}),
-    ...(dispatcher ? { dispatcher } : {}),
-  } as RequestInit);
+  });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`FileMaker auth failed: ${res.status} ${text}`);
@@ -74,12 +78,10 @@ async function acquireToken(config: FileMakerConfig): Promise<string> {
 async function releaseToken(config: FileMakerConfig, token: string): Promise<void> {
   try {
     const url = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/sessions/${token}`;
-    const dispatcher = makeAgent(config.allowSelfSigned);
-    await undiciFetch(url, {
+    await sslFetch(config.allowSelfSigned, url, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
-      ...(dispatcher ? { dispatcher } : {}),
-    } as RequestInit);
+    });
   } catch {
   }
 }
@@ -110,8 +112,6 @@ async function findRecords(
   let url: string;
   let options: RequestInit;
 
-  const dispatcher = makeAgent(config.allowSelfSigned);
-
   if (query && query.length > 0) {
     url = `${base}/_find`;
     options = {
@@ -121,18 +121,16 @@ async function findRecords(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ query, limit, offset }),
-      ...(dispatcher ? { dispatcher } : {}),
-    } as RequestInit;
+    };
   } else {
     url = `${base}/records?_limit=${limit}&_offset=${offset}`;
     options = {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
-      ...(dispatcher ? { dispatcher } : {}),
-    } as RequestInit;
+    };
   }
 
-  const res = await undiciFetch(url, options);
+  const res = await sslFetch(config.allowSelfSigned, url, options);
   const data = (await res.json()) as FileMakerResponse;
 
   if (data.messages[0]?.code === "401") {

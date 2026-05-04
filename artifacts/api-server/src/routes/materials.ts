@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, materialsTable, userFavouritesTable } from "@workspace/db";
-import { eq, or, ilike, and, inArray } from "drizzle-orm";
+import { eq, or, like, and, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../lib/auth-middleware";
 import { getStockLevel } from "../lib/filemaker";
 
@@ -50,8 +50,8 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
           and(
             inArray(materialsTable.id, favIds),
             or(
-              ilike(materialsTable.displayName, `%${search}%`),
-              ilike(materialsTable.pcode, `%${search}%`),
+              like(materialsTable.displayName, `%${search}%`),
+              like(materialsTable.pcode, `%${search}%`),
             ),
           ),
         );
@@ -67,8 +67,8 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
       .from(materialsTable)
       .where(
         or(
-          ilike(materialsTable.displayName, `%${search}%`),
-          ilike(materialsTable.pcode, `%${search}%`),
+          like(materialsTable.displayName, `%${search}%`),
+          like(materialsTable.pcode, `%${search}%`),
         ),
       );
   } else {

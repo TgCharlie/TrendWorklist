@@ -19,7 +19,7 @@
     "better-sqlite3": "^11.10.0"
   },
   "devDependencies": {
-    "electron": "^32.2.7",
+    "electron": "^35.0.0",
     "electron-builder": "^25.1.8"
   }
 }

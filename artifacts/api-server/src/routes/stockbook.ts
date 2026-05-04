@@ -33,10 +33,13 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/sync", requireAuth, async (req, res): Promise<void> => {
+  (req.socket as { setNoDelay?: (v: boolean) => void } | null)?.setNoDelay?.(true);
+
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
+  res.write(": connected\n\n");
 
   const send = (data: object) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
@@ -66,34 +69,42 @@ router.post("/sync", requireAuth, async (req, res): Promise<void> => {
   let saved = 0;
   const total = fmRecords.length;
 
-  for (let i = 0; i < fmRecords.length; i += batchSize) {
-    const batch = fmRecords.slice(i, i + batchSize);
-    await db
-      .insert(stockbookTable)
-      .values(
-        batch.map((r) => ({
-          pcode: r.pcode,
-          description: r.description,
-          qtyOnHand: r.qtyOnHand,
-          unit: r.unit,
-          location: r.location,
-          lastSyncedAt: now,
-          updatedAt: now,
-        })),
-      )
-      .onConflictDoUpdate({
-        target: stockbookTable.pcode,
-        set: {
-          description: sql`excluded.description`,
-          qtyOnHand: sql`excluded.qty_on_hand`,
-          unit: sql`excluded.unit`,
-          location: sql`excluded.location`,
-          lastSyncedAt: sql`excluded.last_synced_at`,
-          updatedAt: sql`excluded.updated_at`,
-        },
-      });
-    saved += batch.length;
-    send({ type: "progress", phase: "save", saved, total });
+  try {
+    for (let i = 0; i < fmRecords.length; i += batchSize) {
+      const batch = fmRecords.slice(i, i + batchSize);
+      await db
+        .insert(stockbookTable)
+        .values(
+          batch.map((r) => ({
+            pcode: r.pcode,
+            description: r.description,
+            qtyOnHand: r.qtyOnHand,
+            unit: r.unit,
+            location: r.location,
+            lastSyncedAt: now,
+            updatedAt: now,
+          })),
+        )
+        .onConflictDoUpdate({
+          target: stockbookTable.pcode,
+          set: {
+            description: sql`excluded.description`,
+            qtyOnHand: sql`excluded.qty_on_hand`,
+            unit: sql`excluded.unit`,
+            location: sql`excluded.location`,
+            lastSyncedAt: sql`excluded.last_synced_at`,
+            updatedAt: sql`excluded.updated_at`,
+          },
+        });
+      saved += batch.length;
+      send({ type: "progress", phase: "save", saved, total });
+    }
+  } catch (saveErr) {
+    const message = saveErr instanceof Error ? saveErr.message : "Database save failed";
+    logger.error({ saveErr }, `Stockbook save to database failed: ${message}`);
+    send({ type: "error", message: `Save failed: ${message}` });
+    res.end();
+    return;
   }
 
   send({ type: "done", synced: fmRecords.length, syncedAt: now.toISOString() });

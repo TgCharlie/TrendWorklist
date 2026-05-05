@@ -248,7 +248,7 @@ function sanitizeStr(s: unknown): string | null {
   return cleaned || null;
 }
 
-// StockBook layout columns: PCODE, Item, QtyOnHand, Unit
+// StockBook layout columns: PCODE, Item, QtyOnHand, Cost, CostSub, Unit
 export async function getStockLevel(pcode: string): Promise<Record<string, unknown> | null> {
   return withToken(async (config, token) => {
     const layout = "StockBook";
@@ -407,6 +407,8 @@ export async function getAllStockbook(
           pcode,
           description: item,
           qtyOnHand: Number(r.fieldData["QtyOnHand"] ?? 0),
+          cost: Number(r.fieldData["Cost"] ?? 0),
+          costSub: Number(r.fieldData["CostSub"] ?? 0),
           unit: sanitizeStr(r.fieldData["Unit"] as string | undefined),
           location: sanitizeStr(r.fieldData["Location"] as string | undefined),
           otype: sanitizeStr(r.fieldData["OTYPE"] as string | undefined),

@@ -134,6 +134,8 @@ export const stockbookTable = sqliteTable("stockbook", {
   pcode: text("pcode").notNull().unique(),
   description: text("description").notNull().default(""),
   qtyOnHand: real("qty_on_hand").notNull().default(0),
+  cost: real("cost"),
+  costSub: real("cost_sub"),
   unit: text("unit"),
   location: text("location"),
   otype: text("otype"),

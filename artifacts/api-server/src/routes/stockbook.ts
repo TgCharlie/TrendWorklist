@@ -142,6 +142,8 @@ async function syncStockbook(
           pcode: r.pcode,
           description: r.description || "",
           qtyOnHand: Number.isFinite(r.qtyOnHand) ? r.qtyOnHand : 0,
+          cost: Number.isFinite(r.cost) ? r.cost : null,
+          costSub: Number.isFinite(r.costSub) ? r.costSub : null,
           unit: r.unit,
           location: r.location,
           otype: r.otype,
@@ -156,6 +158,8 @@ async function syncStockbook(
           set: {
             description: sql`excluded.description`,
             qtyOnHand: sql`excluded.qty_on_hand`,
+            cost: sql`excluded.cost`,
+            costSub: sql`excluded.cost_sub`,
             unit: sql`excluded.unit`,
             location: sql`excluded.location`,
             otype: sql`excluded.otype`,

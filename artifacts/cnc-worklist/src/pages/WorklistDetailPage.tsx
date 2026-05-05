@@ -349,7 +349,7 @@ export default function WorklistDetailPage() {
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">L (mm)</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">W (mm)</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Notes</th>
-                <th className="text-center px-3 py-2.5 text-zinc-500 font-medium w-20" title="Tag_StockTracked — uncheck to turn off tracking in FileMaker">TagTracked</th>
+                <th className="text-center px-3 py-2.5 text-zinc-500 font-medium w-24 min-w-24 whitespace-nowrap" title="Tag_StockTracked — uncheck to turn off tracking in FileMaker">TagTracked</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
@@ -372,7 +372,7 @@ export default function WorklistDetailPage() {
                       {item.width ?? "—"}
                     </td>
                     <td className="px-4 py-2.5 text-zinc-500 text-xs">{item.notes}</td>
-                    <td className="px-3 py-2.5 text-center w-20">
+                    <td className="px-3 py-2.5 text-center w-24 min-w-24 whitespace-nowrap">
                       <input
                         type="checkbox"
                         checked={isTracked}

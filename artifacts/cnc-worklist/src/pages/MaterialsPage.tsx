@@ -205,6 +205,7 @@ export default function MaterialsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editItem, setEditItem] = useState<Material | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [selectedStockbookItem, setSelectedStockbookItem] = useState<StockbookItem | null>(null);
 
   const { data: materials = [], isLoading } = useQuery<Material[]>({
     queryKey: ["materials", search],
@@ -219,6 +220,7 @@ export default function MaterialsPage() {
       queryClient.invalidateQueries({ queryKey: ["materials"] });
       setShowCreate(false);
       setForm(EMPTY_FORM);
+      setSelectedStockbookItem(null);
       toast({ title: "Material created" });
     },
     onError: (err: Error) => {
@@ -266,6 +268,7 @@ export default function MaterialsPage() {
 
   function openEdit(m: Material) {
     setEditItem(m);
+    setSelectedStockbookItem(null);
     setForm({
       pcode: m.pcode,
       displayName: m.displayName,
@@ -277,15 +280,29 @@ export default function MaterialsPage() {
   }
 
   function handleStockbookSelect(item: StockbookItem) {
+    setSelectedStockbookItem(item);
     setForm((f) => ({
       ...f,
       pcode: item.pcode.toUpperCase(),
-      displayName: item.description || f.displayName,
+      displayName: "",
       ...(item.length != null ? { length: String(item.length) } : {}),
       ...(item.width != null ? { width: String(item.width) } : {}),
       ...(item.thickness != null ? { thickness: String(item.thickness) } : {}),
     }));
   }
+
+  function clearStockbookSelection() {
+    setSelectedStockbookItem(null);
+    setForm(EMPTY_FORM);
+  }
+
+  function closeDialog() {
+    setShowCreate(false);
+    setEditItem(null);
+    setSelectedStockbookItem(null);
+  }
+
+  const dimLocked = selectedStockbookItem !== null;
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -297,7 +314,7 @@ export default function MaterialsPage() {
         {isAdmin && (
           <Button
             data-testid="button-add-material"
-            onClick={() => { setShowCreate(true); setForm(EMPTY_FORM); }}
+            onClick={() => { setShowCreate(true); setForm(EMPTY_FORM); setSelectedStockbookItem(null); }}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -403,23 +420,46 @@ export default function MaterialsPage() {
       )}
 
       <Dialog open={showCreate || !!editItem} onOpenChange={(open) => {
-        if (!open) { setShowCreate(false); setEditItem(null); }
+        if (!open) closeDialog();
       }}>
         <DialogContent className="bg-white border-zinc-200 text-zinc-950 overflow-visible">
           <DialogHeader>
             <DialogTitle>{editItem ? "Edit Material" : "Add Material"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2 overflow-visible">
+
+            {/* Stockbook picker — create mode only */}
             {!editItem && (
               <>
-                <StockbookPicker onSelect={handleStockbookSelect} />
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-px bg-zinc-200" />
-                  <span className="text-xs text-zinc-400 shrink-0">or fill in manually</span>
-                  <div className="flex-1 h-px bg-zinc-200" />
-                </div>
+                {selectedStockbookItem ? (
+                  <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-blue-700 mb-0.5">Selected from Stockbook</p>
+                      <p className="font-mono text-xs font-bold text-blue-900">{selectedStockbookItem.pcode}</p>
+                      <p className="text-xs text-blue-700 truncate">{selectedStockbookItem.description}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearStockbookSelection}
+                      className="shrink-0 text-xs text-blue-500 hover:text-blue-700 underline underline-offset-2 transition-colors mt-0.5"
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <StockbookPicker onSelect={handleStockbookSelect} />
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-px bg-zinc-200" />
+                      <span className="text-xs text-zinc-400 shrink-0">or fill in manually</span>
+                      <div className="flex-1 h-px bg-zinc-200" />
+                    </div>
+                  </>
+                )}
               </>
             )}
+
+            {/* PCODE */}
             <div className="space-y-1.5">
               <Label className="text-zinc-700">PCODE</Label>
               <Input
@@ -430,51 +470,103 @@ export default function MaterialsPage() {
                 className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono"
               />
             </div>
+
+            {/* Stockbook full description — read-only reference, shown when from stockbook */}
+            {selectedStockbookItem && (
+              <div className="space-y-1.5">
+                <Label className="text-zinc-500 flex items-center gap-1.5">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  Stockbook Description
+                </Label>
+                <Input
+                  value={selectedStockbookItem.description}
+                  readOnly
+                  className="bg-zinc-50 border-zinc-200 text-zinc-500 cursor-not-allowed select-text"
+                />
+              </div>
+            )}
+
+            {/* Abbreviated description / display name */}
             <div className="space-y-1.5">
-              <Label className="text-zinc-700">Description</Label>
+              <Label className="text-zinc-700">
+                {selectedStockbookItem ? "Abbreviated Description" : "Description"}
+              </Label>
+              {selectedStockbookItem && (
+                <p className="text-xs text-zinc-400 -mt-0.5">
+                  Short label shown on the worklist — type your own concise name.
+                </p>
+              )}
               <Input
                 data-testid="input-material-description"
                 value={form.displayName}
                 onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
-                placeholder="e.g. 18mm MDF Sheet 2400x1200"
+                placeholder={selectedStockbookItem ? "e.g. 18mm White Matt PB" : "e.g. 18mm MDF Sheet 2400x1200"}
                 className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-zinc-700">Length (mm)</Label>
-                <Input
-                  data-testid="input-material-length"
-                  value={form.length}
-                  onChange={(e) => setForm((f) => ({ ...f, length: e.target.value }))}
-                  placeholder="2400"
-                  type="number"
-                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
-                />
+
+            {/* Dimensions — locked when from stockbook */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium text-zinc-700">Dimensions (mm)</span>
+                {dimLocked && (
+                  <span className="inline-flex items-center gap-1 text-xs text-zinc-400 bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 rounded">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Locked — set by Stockbook
+                  </span>
+                )}
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-zinc-700">Width (mm)</Label>
-                <Input
-                  data-testid="input-material-width"
-                  value={form.width}
-                  onChange={(e) => setForm((f) => ({ ...f, width: e.target.value }))}
-                  placeholder="1200"
-                  type="number"
-                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-zinc-700">Thickness (mm)</Label>
-                <Input
-                  data-testid="input-material-thickness"
-                  value={form.thickness}
-                  onChange={(e) => setForm((f) => ({ ...f, thickness: e.target.value }))}
-                  placeholder="18"
-                  type="number"
-                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
-                />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-zinc-500 text-xs">Length</Label>
+                  <Input
+                    data-testid="input-material-length"
+                    value={form.length}
+                    onChange={(e) => !dimLocked && setForm((f) => ({ ...f, length: e.target.value }))}
+                    readOnly={dimLocked}
+                    placeholder="2400"
+                    type="number"
+                    className={dimLocked
+                      ? "bg-zinc-50 border-zinc-200 text-zinc-400 cursor-not-allowed"
+                      : "bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-zinc-500 text-xs">Width</Label>
+                  <Input
+                    data-testid="input-material-width"
+                    value={form.width}
+                    onChange={(e) => !dimLocked && setForm((f) => ({ ...f, width: e.target.value }))}
+                    readOnly={dimLocked}
+                    placeholder="1200"
+                    type="number"
+                    className={dimLocked
+                      ? "bg-zinc-50 border-zinc-200 text-zinc-400 cursor-not-allowed"
+                      : "bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-zinc-500 text-xs">Thickness</Label>
+                  <Input
+                    data-testid="input-material-thickness"
+                    value={form.thickness}
+                    onChange={(e) => !dimLocked && setForm((f) => ({ ...f, thickness: e.target.value }))}
+                    readOnly={dimLocked}
+                    placeholder="18"
+                    type="number"
+                    className={dimLocked
+                      ? "bg-zinc-50 border-zinc-200 text-zinc-400 cursor-not-allowed"
+                      : "bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"}
+                  />
+                </div>
               </div>
             </div>
+
+            {/* Notes */}
             <div className="space-y-1.5">
               <Label className="text-zinc-700">Notes</Label>
               <Input
@@ -489,7 +581,7 @@ export default function MaterialsPage() {
           <DialogFooter>
             <Button
               variant="ghost"
-              onClick={() => { setShowCreate(false); setEditItem(null); }}
+              onClick={closeDialog}
               className="text-zinc-400"
             >
               Cancel

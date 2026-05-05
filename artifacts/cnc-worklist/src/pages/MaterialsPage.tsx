@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/hooks/useApi";
 import { useGetMaterialStock, getGetMaterialStockQueryKey } from "@workspace/api-client-react";
@@ -57,7 +57,142 @@ interface Material {
   createdAt: string;
 }
 
+interface StockbookItem {
+  pcode: string;
+  description: string;
+  qtyOnHand: number;
+  unit: string | null;
+}
+
 const EMPTY_FORM = { pcode: "", displayName: "", length: "", width: "", thickness: "", notes: "" };
+
+function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<StockbookItem[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const data = await apiFetch<{ items: StockbookItem[] }>(
+          `/stockbook?search=${encodeURIComponent(query.trim())}`
+        );
+        setResults((data.items ?? []).slice(0, 20));
+        setOpen(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 280);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function handleSelect(item: StockbookItem) {
+    onSelect(item);
+    setQuery("");
+    setResults([]);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={containerRef} className="relative space-y-1.5">
+      <Label className="text-zinc-700">Search Stockbook</Label>
+      <div className="relative">
+        <svg
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+        </svg>
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => { if (results.length > 0) setOpen(true); }}
+          placeholder="Type a PCODE or description to search…"
+          className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 pl-8"
+        />
+        {loading && (
+          <svg
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 animate-spin"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+          </svg>
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-zinc-200 rounded-md shadow-lg overflow-hidden">
+          {results.length === 0 ? (
+            <div className="px-3 py-3 text-sm text-zinc-400 text-center">
+              No Stockbook entries match — fill the form manually below.
+            </div>
+          ) : (
+            <ul className="max-h-52 overflow-y-auto divide-y divide-zinc-100">
+              {results.map((item) => (
+                <li key={item.pcode}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSelect(item)}
+                    className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0">
+                      <span className="block font-mono text-xs font-bold text-blue-600 truncate">{item.pcode}</span>
+                      <span className="block text-xs text-zinc-600 truncate">{item.description}</span>
+                    </div>
+                    {item.qtyOnHand != null && (
+                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded border font-medium ${
+                        item.qtyOnHand <= 0
+                          ? "text-red-600 bg-red-50 border-red-200"
+                          : item.qtyOnHand < 5
+                            ? "text-amber-700 bg-amber-50 border-amber-200"
+                            : "text-green-700 bg-green-50 border-green-200"
+                      }`}>
+                        {item.qtyOnHand} {item.unit ?? ""}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {!open && !query && (
+        <p className="text-xs text-zinc-400">
+          Search to import from Stockbook, or fill the fields below manually.
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function MaterialsPage() {
   const { user } = useAuth();
@@ -136,6 +271,14 @@ export default function MaterialsPage() {
       thickness: m.thickness != null ? String(m.thickness) : "",
       notes: m.notes ?? "",
     });
+  }
+
+  function handleStockbookSelect(item: StockbookItem) {
+    setForm((f) => ({
+      ...f,
+      pcode: item.pcode.toUpperCase(),
+      displayName: item.description || f.displayName,
+    }));
   }
 
   return (
@@ -256,11 +399,21 @@ export default function MaterialsPage() {
       <Dialog open={showCreate || !!editItem} onOpenChange={(open) => {
         if (!open) { setShowCreate(false); setEditItem(null); }
       }}>
-        <DialogContent className="bg-white border-zinc-200 text-zinc-950">
+        <DialogContent className="bg-white border-zinc-200 text-zinc-950 overflow-visible">
           <DialogHeader>
             <DialogTitle>{editItem ? "Edit Material" : "Add Material"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 overflow-visible">
+            {!editItem && (
+              <>
+                <StockbookPicker onSelect={handleStockbookSelect} />
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-px bg-zinc-200" />
+                  <span className="text-xs text-zinc-400 shrink-0">or fill in manually</span>
+                  <div className="flex-1 h-px bg-zinc-200" />
+                </div>
+              </>
+            )}
             <div className="space-y-1.5">
               <Label className="text-zinc-700">PCODE</Label>
               <Input

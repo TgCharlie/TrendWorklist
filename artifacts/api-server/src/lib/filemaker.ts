@@ -266,6 +266,7 @@ export interface FMStockbookRecord {
   qtyOnHand: number;
   unit: string | null;
   location: string | null;
+  tracked: boolean;
 }
 
 // Fetch all records from the FileMaker StockBook layout in batches.
@@ -283,11 +284,7 @@ export async function getAllStockbook(
     let knownTotal = 0;
     let nextProgressAt = 50;
 
-    // Use a find with TagStockedTracked = "1" so only actively stocked/tracked
-    // items are synced. Records with 0 or no value in that field are excluded.
-    // The PCODE wildcard ensures we still get all matching records regardless
-    // of found set, while TagStockedTracked filters to only the ones we want.
-    const query = [{ PCODE: "*", TagStockedTracked: "1" }];
+    const query = [{ PCODE: "*" }];
 
     while (true) {
       const { records, total } = await findRecordsPage(
@@ -298,6 +295,8 @@ export async function getAllStockbook(
       for (const r of records) {
         const pcode = sanitizeStr(r.fieldData["PCODE"] as string | undefined);
         if (!pcode) continue;
+        const trackedValue = sanitizeStr(r.fieldData["TagStockedTracked"] as string | undefined);
+        if (trackedValue !== "1") continue;
         const item = sanitizeStr(
           (r.fieldData["Item"] as string | undefined) ??
           (r.fieldData["Description"] as string | undefined),
@@ -308,6 +307,7 @@ export async function getAllStockbook(
           qtyOnHand: Number(r.fieldData["QtyOnHand"] ?? 0),
           unit: sanitizeStr(r.fieldData["Unit"] as string | undefined),
           location: sanitizeStr(r.fieldData["Location"] as string | undefined),
+          tracked: true,
         });
       }
       if (onProgress) {

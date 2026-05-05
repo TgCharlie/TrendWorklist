@@ -274,24 +274,19 @@ export interface FMStockbookRecord {
   tracked: boolean;
 }
 
-// Format a JS Date as the FileMaker timestamp string expected by _find:
-// "MM/DD/YYYY HH:MM:SS"
-function toFileMakerTimestamp(d: Date): string {
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${mm}/${dd}/${yyyy} ${hh}:${min}:${ss}`;
-}
-
-// Format a JS Date as a FileMaker date-only string: "MM/DD/YYYY"
-function toFileMakerDate(d: Date): string {
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${mm}/${dd}/${yyyy}`;
+// Parse a FileMaker text-field timestamp "MM/DD/YYYY HH:MM:SS am/pm" into
+// UTC milliseconds so we can find the max across a batch of records.
+function fmTextTimestampToMs(s: string): number {
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2}) (am|pm)$/i);
+  if (!m) return 0;
+  const [, mm, dd, yyyy, hh, min, ss, ap] = m;
+  let hours = parseInt(hh, 10);
+  if (ap.toLowerCase() === "pm" && hours !== 12) hours += 12;
+  if (ap.toLowerCase() === "am" && hours === 12) hours = 0;
+  return Date.UTC(
+    parseInt(yyyy, 10), parseInt(mm, 10) - 1, parseInt(dd, 10),
+    hours, parseInt(min, 10), parseInt(ss, 10),
+  );
 }
 
 // Debug helper: run a single-page _find against the StockBook layout with
@@ -331,29 +326,32 @@ export async function debugStockbookFind(
 }
 
 // Fetch tracked records from the FileMaker StockBook layout in batches.
-// When `since` is provided only records with ModifiedDate > since are fetched
-// (delta / incremental sync). Without it every tracked record is returned.
-// onProgress(fetched, total) is called after each batch.
+// `since` is the raw FM text value of Replit_ModifiedDate from the previous
+// sync (e.g. "05/05/2026 10:33:57 am"). When provided, only records where
+// Replit_ModifiedDate > since are fetched (delta sync). Without it every
+// tracked record is returned (initial / forced full sync).
+// Returns the records AND the maximum Replit_ModifiedDate text seen, which
+// the caller should persist so the next delta sync can use it as `since`.
 export async function getAllStockbook(
   onProgress?: (fetched: number, total: number) => void,
-  since?: Date,
-): Promise<FMStockbookRecord[]> {
+  since?: string,
+): Promise<{ records: FMStockbookRecord[]; maxFmTimestamp: string | null }> {
   return withToken(async (config, token) => {
     const layout = "StockBook";
     const batchSize = 1000;
     const results: FMStockbookRecord[] = [];
     let offset = 1;
     let knownTotal = 0;
+    let maxFmTimestamp: string | null = null;
+    let maxFmMs = 0;
 
-    // When `since` is set, add a ModifiedDate range to the criterion so
-    // FileMaker returns only records changed after the last sync date.
-    // ModifiedDate is a Date field (no time component) so we must use the
-    // date-only format "MM/DD/YYYY" — including a time component causes
-    // FileMaker to treat it as >= that date, returning everything.
-    // Criteria in the same object are ANDed by FileMaker Data API.
+    // Replit_ModifiedDate is a text field storing "MM/DD/YYYY HH:MM:SS am/pm".
+    // Passing `since` directly lets FileMaker do a text > comparison in the
+    // exact same format — no timezone conversion needed.
+    // Criteria in the same object are ANDed by the FileMaker Data API.
     const criterion: Record<string, string> = { Tag_StockTracked: "1" };
     if (since) {
-      criterion["ModifiedDate"] = `>${toFileMakerDate(since)}`;
+      criterion["Replit_ModifiedDate"] = `>${since}`;
     }
     const query = [criterion];
 
@@ -385,6 +383,12 @@ export async function getAllStockbook(
           location: sanitizeStr(r.fieldData["Location"] as string | undefined),
           tracked: true,
         });
+        // Track the highest Replit_ModifiedDate so we can persist it after sync.
+        const fmTs = sanitizeStr(r.fieldData["Replit_ModifiedDate"] as string | undefined);
+        if (fmTs) {
+          const ms = fmTextTimestampToMs(fmTs);
+          if (ms > maxFmMs) { maxFmMs = ms; maxFmTimestamp = fmTs; }
+        }
       }
       // Emit once per batch so the bar advances after every 1,000 FM records.
       if (onProgress) {
@@ -394,7 +398,7 @@ export async function getAllStockbook(
       offset += batchSize;
     }
 
-    return results;
+    return { records: results, maxFmTimestamp };
   });
 }
 

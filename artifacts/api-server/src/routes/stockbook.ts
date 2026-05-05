@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
-import { like, max, or, sql } from "drizzle-orm";
+import { like, or, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
 import { getAllStockbook, debugStockbookFind } from "../lib/filemaker";
+import { getSetting, setSetting } from "../lib/settings";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -36,7 +37,7 @@ async function syncStockbook(
   req: Parameters<typeof requireAuth>[0],
   res: Parameters<typeof requireAuth>[1],
   progressInterval = 50,
-  since?: Date,
+  since?: string,
 ): Promise<void> {
   (req.socket as { setNoDelay?: (v: boolean) => void } | null)?.setNoDelay?.(true);
 
@@ -51,7 +52,7 @@ async function syncStockbook(
     (res as unknown as { flush?: () => void }).flush?.();
   };
 
-  let fmRecords: Awaited<ReturnType<typeof getAllStockbook>>;
+  let fmRecords: ReturnType<typeof getAllStockbook> extends Promise<infer T> ? T : never;
   try {
     fmRecords = await getAllStockbook((fetched, total) => {
       if (progressInterval <= 1 || fetched % progressInterval === 0 || fetched === total) {
@@ -66,7 +67,9 @@ async function syncStockbook(
     return;
   }
 
-  if (!fmRecords.length) {
+  const { records, maxFmTimestamp } = fmRecords;
+
+  if (!records.length) {
     const message = since
       ? "No records have been modified in FileMaker since the last sync."
       : "No records returned from FileMaker StockBook layout.";
@@ -77,10 +80,10 @@ async function syncStockbook(
 
   // Deduplicate by pcode — FileMaker can return duplicate PCODEs; keep last occurrence.
   const deduped = Array.from(
-    fmRecords.reduce((map, r) => {
+    records.reduce((map, r) => {
       map.set(r.pcode, r);
       return map;
-    }, new Map<string, (typeof fmRecords)[0]>()).values(),
+    }, new Map<string, (typeof records)[0]>()).values(),
   );
 
   const now = new Date();
@@ -125,58 +128,45 @@ async function syncStockbook(
     return;
   }
 
-  send({ type: "done", synced: fmRecords.length, syncedAt: now.toISOString() });
+  // Persist the highest Replit_ModifiedDate seen so the next delta sync
+  // can use it directly as the FileMaker _find criterion.
+  if (maxFmTimestamp) {
+    try {
+      await setSetting("stockbook_fm_since", maxFmTimestamp);
+      logger.info({ maxFmTimestamp }, "Stored stockbook_fm_since for next delta sync");
+    } catch (e) {
+      logger.warn({ e }, "Could not persist stockbook_fm_since — next sync will be full");
+    }
+  }
+
+  send({ type: "done", synced: records.length, syncedAt: now.toISOString() });
   res.end();
 }
 
-// Debug endpoint: probe FileMaker with several ModifiedDate criterion formats
-// so we can identify which field name / date format the server accepts.
+// Debug endpoint: probe FileMaker with several Replit_ModifiedDate criterion
+// formats and show raw dataInfo so we can diagnose delta-sync behaviour.
 // GET /api/stockbook/debug-delta
 router.get("/debug-delta", requireAuth, async (req, res): Promise<void> => {
-  const [row] = await db
-    .select({ lastSync: max(stockbookTable.lastSyncedAt) })
-    .from(stockbookTable);
-  const since = row?.lastSync ?? new Date();
-
-  // Build both formats from `since`
-  const mm = String(since.getMonth() + 1).padStart(2, "0");
-  const dd = String(since.getDate()).padStart(2, "0");
-  const yyyy = since.getFullYear();
-  const hh = String(since.getHours()).padStart(2, "0");
-  const min = String(since.getMinutes()).padStart(2, "0");
-  const ss = String(since.getSeconds()).padStart(2, "0");
-  const tsLocal  = `${mm}/${dd}/${yyyy} ${hh}:${min}:${ss}`;
-  const dateOnly = `${mm}/${dd}/${yyyy}`;
-
-  // Also build a "tomorrow" date to catch the timezone skew case
-  const tomorrow = new Date(since);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tmMm = String(tomorrow.getMonth() + 1).padStart(2, "0");
-  const tmDd = String(tomorrow.getDate()).padStart(2, "0");
-  const tmYyyy = tomorrow.getFullYear();
-  const tomorrowDate = `${tmMm}/${tmDd}/${tmYyyy}`;
+  const stored = await getSetting("stockbook_fm_since").catch(() => null);
 
   const tests = await Promise.allSettled([
-    // A: field name + full timestamp
-    debugStockbookFind({ Tag_StockTracked: "1", ModifiedDate: `>${tsLocal}` }),
-    // B: field name + date only
-    debugStockbookFind({ Tag_StockTracked: "1", ModifiedDate: `>${dateOnly}` }),
-    // C: tomorrow date (should always be 0 if field works)
-    debugStockbookFind({ Tag_StockTracked: "1", ModifiedDate: `>${tomorrowDate}` }),
-    // D: bare wildcard (sanity-check total)
+    // A: stored FM timestamp as-is (what delta sync will actually send)
+    stored
+      ? debugStockbookFind({ Tag_StockTracked: "1", Replit_ModifiedDate: `>${stored}` })
+      : Promise.resolve({ skipped: "no stored timestamp yet" }),
+    // B: sanity check — all tracked records (should be 18k+)
     debugStockbookFind({ Tag_StockTracked: "1" }),
   ]);
 
   res.json({
-    since: since.toISOString(),
-    tsLocal,
-    dateOnly,
-    tomorrowDate,
+    stored_fm_since: stored,
     results: {
-      A_fullTimestamp: tests[0].status === "fulfilled" ? tests[0].value : { error: String((tests[0] as PromiseRejectedResult).reason) },
-      B_dateOnly:      tests[1].status === "fulfilled" ? tests[1].value : { error: String((tests[1] as PromiseRejectedResult).reason) },
-      C_tomorrow:      tests[2].status === "fulfilled" ? tests[2].value : { error: String((tests[2] as PromiseRejectedResult).reason) },
-      D_allTracked:    tests[3].status === "fulfilled" ? tests[3].value : { error: String((tests[3] as PromiseRejectedResult).reason) },
+      A_deltaWithStored: tests[0].status === "fulfilled"
+        ? tests[0].value
+        : { error: String((tests[0] as PromiseRejectedResult).reason) },
+      B_allTracked: tests[1].status === "fulfilled"
+        ? tests[1].value
+        : { error: String((tests[1] as PromiseRejectedResult).reason) },
     },
   });
 });
@@ -186,16 +176,13 @@ router.post("/sync", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/sync/full", requireAuth, async (req, res): Promise<void> => {
-  // Use the latest lastSyncedAt across all rows as the delta cutoff.
-  // On the very first sync this will be null and all tracked records are fetched.
-  const [row] = await db
-    .select({ lastSync: max(stockbookTable.lastSyncedAt) })
-    .from(stockbookTable);
-  const since = row?.lastSync ?? undefined;
+  // Read the FM text timestamp saved after the last sync. On the very first
+  // run this setting is absent so `since` will be undefined → full fetch.
+  const since = await getSetting("stockbook_fm_since").catch(() => undefined);
   if (since) {
-    logger.info({ since }, "Full sync: delta mode — fetching FM records modified after last sync");
+    logger.info({ since }, "Full sync: delta mode — fetching FM records where Replit_ModifiedDate > since");
   } else {
-    logger.info("Full sync: no prior sync found — fetching all tracked records");
+    logger.info("Full sync: no prior FM timestamp — fetching all tracked records");
   }
   await syncStockbook(req, res, 1, since);
 });

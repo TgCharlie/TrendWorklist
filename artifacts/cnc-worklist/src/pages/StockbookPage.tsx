@@ -385,7 +385,7 @@ export default function StockbookPage() {
             )}
           </div>
         ) : (
-          <Table>
+          <table className="w-full caption-bottom text-sm">
             <TableHeader className="sticky top-0 z-10 bg-zinc-50 shadow-[0_1px_0_0_theme(colors.zinc.200)]">
               <TableRow className="bg-zinc-50 hover:bg-zinc-50">
                 <TableHead className="w-36 font-semibold text-zinc-700">PCODE</TableHead>
@@ -448,7 +448,7 @@ export default function StockbookPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </table>
         )}
       </div>
 

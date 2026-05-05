@@ -387,7 +387,10 @@ export async function getAllStockbook(
         const fmTs = sanitizeStr(r.fieldData["Replit_ModifiedDate"] as string | undefined);
         if (fmTs) {
           const ms = fmTextTimestampToMs(fmTs);
-          if (ms > maxFmMs) { maxFmMs = ms; maxFmTimestamp = fmTs; }
+          if (ms > maxFmMs) {
+            maxFmMs = ms;
+            maxFmTimestamp = fmTs;
+          }
         }
       }
       // Emit once per batch so the bar advances after every 1,000 FM records.

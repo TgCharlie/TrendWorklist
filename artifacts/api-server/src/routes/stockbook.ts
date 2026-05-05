@@ -132,6 +132,7 @@ async function syncStockbook(
   // can use it directly as the FileMaker _find criterion.
   if (maxFmTimestamp) {
     try {
+      logger.info({ maxFmTimestamp }, "Stockbook sync found latest Replit_ModifiedDate");
       await setSetting("stockbook_fm_since", maxFmTimestamp);
       logger.info({ maxFmTimestamp }, "Stored stockbook_fm_since for next delta sync");
     } catch (e) {

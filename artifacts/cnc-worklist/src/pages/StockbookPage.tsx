@@ -235,120 +235,126 @@ export default function StockbookPage() {
   })();
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-950">Stockbook</h1>
-          <p className="text-zinc-500 text-sm mt-0.5">
-            Local stock levels synced from FileMaker. <span className="text-zinc-400">Last sync: {fmt(lastSyncedAt)}</span>
-          </p>
-        </div>
+    <div className="flex flex-col" style={{ height: "calc(100vh - 48px)" }}>
 
-        <Button
-          onClick={() => handleSync()}
-          disabled={syncState.active}
-          className="shrink-0 bg-blue-600 hover:bg-blue-700"
-        >
-          <svg
-            className={`w-4 h-4 mr-2 ${syncState.active ? "animate-spin" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-          {syncState.active ? "Syncing…" : "Sync"}
-        </Button>
-      </div>
-
-      {syncProgress && (
-        <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 space-y-2">
-          <div className="flex items-center justify-between text-sm text-blue-700">
-            <span>{syncProgress.label}</span>
-            {!syncProgress.indeterminate && syncProgress.max > 0 && (
-              <span className="font-medium tabular-nums">
-                {Math.min(100, Math.round((syncProgress.value / syncProgress.max) * 100))}%
-              </span>
-            )}
+      {/* ── Fixed header ─────────────────────────────────────────── */}
+      <div className="shrink-0 space-y-4 pb-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-zinc-950">Stockbook</h1>
+            <p className="text-zinc-500 text-sm mt-0.5">
+              Local stock levels synced from FileMaker.{" "}
+              <span className="text-zinc-400">Last sync: {fmt(lastSyncedAt)}</span>
+            </p>
           </div>
-          <ProgressBar
-            value={syncProgress.value}
-            max={syncProgress.max}
-            indeterminate={syncProgress.indeterminate}
-          />
-        </div>
-      )}
 
-      {syncState.error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          Sync failed: {syncState.error}
-        </div>
-      )}
-
-      {syncState.lastResult && (
-        <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
-          Synced {syncState.lastResult.synced.toLocaleString()} records from FileMaker.
-        </div>
-      )}
-
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48 max-w-sm">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+          <Button
+            onClick={() => handleSync()}
+            disabled={syncState.active}
+            className="shrink-0 bg-blue-600 hover:bg-blue-700"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by pcode or item…"
-            className="pl-9"
-          />
+            <svg
+              className={`w-4 h-4 mr-2 ${syncState.active ? "animate-spin" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            {syncState.active ? "Syncing…" : "Sync"}
+          </Button>
         </div>
 
-        {otypes.length > 0 && (
-          <Select value={otype || "__all__"} onValueChange={(v) => setOtype(v === "__all__" ? "" : v)}>
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder="All types" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All types</SelectItem>
-              {otypes.map((o) => (
-                <SelectItem key={o} value={o}>{o}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {syncProgress && (
+          <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 space-y-2">
+            <div className="flex items-center justify-between text-sm text-blue-700">
+              <span>{syncProgress.label}</span>
+              {!syncProgress.indeterminate && syncProgress.max > 0 && (
+                <span className="font-medium tabular-nums">
+                  {Math.min(100, Math.round((syncProgress.value / syncProgress.max) * 100))}%
+                </span>
+              )}
+            </div>
+            <ProgressBar
+              value={syncProgress.value}
+              max={syncProgress.max}
+              indeterminate={syncProgress.indeterminate}
+            />
+          </div>
         )}
 
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => { setSearch(""); setOtype(""); }}
-          disabled={!search && !otype}
-        >
-          Clear
-        </Button>
-        {data && (
-          <span className="text-sm text-zinc-500">
-            {data.total} item{data.total !== 1 ? "s" : ""}
-          </span>
+        {syncState.error && (
+          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            Sync failed: {syncState.error}
+          </div>
         )}
+
+        {syncState.lastResult && (
+          <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+            Synced {syncState.lastResult.synced.toLocaleString()} records from FileMaker.
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-48 max-w-sm">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by pcode or item…"
+              className="pl-9"
+            />
+          </div>
+
+          {otypes.length > 0 && (
+            <Select value={otype || "__all__"} onValueChange={(v) => setOtype(v === "__all__" ? "" : v)}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="All types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All types</SelectItem>
+                {otypes.map((o) => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => { setSearch(""); setOtype(""); }}
+            disabled={!search && !otype}
+          >
+            Clear
+          </Button>
+          {data && (
+            <span className="text-sm text-zinc-500">
+              {data.total} item{data.total !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
+      {/* ── Scrollable table ──────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-zinc-200 bg-white">
         {isLoading ? (
           <div className="py-20 text-center text-zinc-400 text-sm">
             <svg
@@ -372,16 +378,16 @@ export default function StockbookPage() {
           </div>
         ) : items.length === 0 ? (
           <div className="py-20 text-center text-zinc-400 text-sm">
-            {search ? (
-              <>No results for &ldquo;{search}&rdquo;</>
+            {search || otype ? (
+              <>No results{search ? <> for &ldquo;{search}&rdquo;</> : null}{otype ? <> in OTYPE &ldquo;{otype}&rdquo;</> : null}</>
             ) : (
               <>No stock items yet. <button className="text-blue-600 hover:underline" onClick={() => handleSync()} disabled={syncState.active}>Sync</button> to populate this table.</>
             )}
           </div>
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow className="bg-zinc-50">
+            <TableHeader className="sticky top-0 z-10 bg-zinc-50 shadow-[0_1px_0_0_theme(colors.zinc.200)]">
+              <TableRow className="bg-zinc-50 hover:bg-zinc-50">
                 <TableHead className="w-36 font-semibold text-zinc-700">PCODE</TableHead>
                 <TableHead className="font-semibold text-zinc-700">Item</TableHead>
                 <TableHead className="w-28 font-semibold text-zinc-700 text-right">
@@ -446,8 +452,9 @@ export default function StockbookPage() {
         )}
       </div>
 
+      {/* ── Pagination ────────────────────────────────────────────── */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-zinc-500">
+        <div className="shrink-0 pt-3 flex items-center justify-between text-sm text-zinc-500">
           <span>
             Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, items.length)} of {items.length.toLocaleString()}
           </span>

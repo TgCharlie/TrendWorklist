@@ -285,8 +285,10 @@ router.patch("/:pcode/tracked", requireAuth, async (req, res): Promise<void> => 
 });
 
 // Proxy a FileMaker container image so the browser never needs FM credentials.
-// Only allows URLs stored in our own stockbook table (prevents open-redirect abuse).
-router.get("/image-proxy", requireAuth, async (req, res): Promise<void> => {
+// No session auth required here — the DB whitelist check below (URL must exist
+// in stockbook.image) prevents open-redirect abuse, and the images are
+// product photos with no PII.
+router.get("/image-proxy", async (req, res): Promise<void> => {
   const url = typeof req.query.url === "string" ? req.query.url : null;
   if (!url) {
     res.status(400).json({ error: "url query param required" });

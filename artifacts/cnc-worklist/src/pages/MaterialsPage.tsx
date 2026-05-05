@@ -300,7 +300,7 @@ export default function MaterialsPage() {
     setForm((f) => ({
       ...f,
       pcode: item.pcode.toUpperCase(),
-      displayName: "",
+      displayName: item.description ?? "",
       ...(item.length != null ? { length: String(item.length) } : {}),
       ...(item.width != null ? { width: String(item.width) } : {}),
       ...(item.thickness != null ? { thickness: String(item.thickness) } : {}),

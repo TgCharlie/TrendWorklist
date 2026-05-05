@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
 import { like, max, or, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
-import { getAllStockbook } from "../lib/filemaker";
+import { getAllStockbook, debugStockbookFind } from "../lib/filemaker";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -128,6 +128,58 @@ async function syncStockbook(
   send({ type: "done", synced: fmRecords.length, syncedAt: now.toISOString() });
   res.end();
 }
+
+// Debug endpoint: probe FileMaker with several ModifiedDate criterion formats
+// so we can identify which field name / date format the server accepts.
+// GET /api/stockbook/debug-delta
+router.get("/debug-delta", requireAuth, async (req, res): Promise<void> => {
+  const [row] = await db
+    .select({ lastSync: max(stockbookTable.lastSyncedAt) })
+    .from(stockbookTable);
+  const since = row?.lastSync ?? new Date();
+
+  // Build both formats from `since`
+  const mm = String(since.getMonth() + 1).padStart(2, "0");
+  const dd = String(since.getDate()).padStart(2, "0");
+  const yyyy = since.getFullYear();
+  const hh = String(since.getHours()).padStart(2, "0");
+  const min = String(since.getMinutes()).padStart(2, "0");
+  const ss = String(since.getSeconds()).padStart(2, "0");
+  const tsLocal  = `${mm}/${dd}/${yyyy} ${hh}:${min}:${ss}`;
+  const dateOnly = `${mm}/${dd}/${yyyy}`;
+
+  // Also build a "tomorrow" date to catch the timezone skew case
+  const tomorrow = new Date(since);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tmMm = String(tomorrow.getMonth() + 1).padStart(2, "0");
+  const tmDd = String(tomorrow.getDate()).padStart(2, "0");
+  const tmYyyy = tomorrow.getFullYear();
+  const tomorrowDate = `${tmMm}/${tmDd}/${tmYyyy}`;
+
+  const tests = await Promise.allSettled([
+    // A: field name + full timestamp
+    debugStockbookFind({ Tag_StockTracked: "1", ModifiedDate: `>${tsLocal}` }),
+    // B: field name + date only
+    debugStockbookFind({ Tag_StockTracked: "1", ModifiedDate: `>${dateOnly}` }),
+    // C: tomorrow date (should always be 0 if field works)
+    debugStockbookFind({ Tag_StockTracked: "1", ModifiedDate: `>${tomorrowDate}` }),
+    // D: bare wildcard (sanity-check total)
+    debugStockbookFind({ Tag_StockTracked: "1" }),
+  ]);
+
+  res.json({
+    since: since.toISOString(),
+    tsLocal,
+    dateOnly,
+    tomorrowDate,
+    results: {
+      A_fullTimestamp: tests[0].status === "fulfilled" ? tests[0].value : { error: String((tests[0] as PromiseRejectedResult).reason) },
+      B_dateOnly:      tests[1].status === "fulfilled" ? tests[1].value : { error: String((tests[1] as PromiseRejectedResult).reason) },
+      C_tomorrow:      tests[2].status === "fulfilled" ? tests[2].value : { error: String((tests[2] as PromiseRejectedResult).reason) },
+      D_allTracked:    tests[3].status === "fulfilled" ? tests[3].value : { error: String((tests[3] as PromiseRejectedResult).reason) },
+    },
+  });
+});
 
 router.post("/sync", requireAuth, async (req, res): Promise<void> => {
   await syncStockbook(req, res, 50);

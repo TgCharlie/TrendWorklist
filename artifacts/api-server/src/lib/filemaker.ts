@@ -286,6 +286,50 @@ function toFileMakerTimestamp(d: Date): string {
   return `${mm}/${dd}/${yyyy} ${hh}:${min}:${ss}`;
 }
 
+// Format a JS Date as a FileMaker date-only string: "MM/DD/YYYY"
+function toFileMakerDate(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
+}
+
+// Debug helper: run a single-page _find against the StockBook layout with
+// a given criterion object and return the raw dataInfo + first field-name list.
+export async function debugStockbookFind(
+  criterion: Record<string, string>,
+  limit = 1,
+): Promise<{
+  query: Record<string, string>;
+  foundCount: number | null;
+  totalRecordCount: number | null;
+  returnedCount: number | null;
+  firstRecordFields: string[];
+  fmMessage: string;
+}> {
+  return withToken(async (config, token) => {
+    const layout = "StockBook";
+    const base = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/layouts/${encodeURIComponent(layout)}`;
+    const body = { query: [criterion], limit, offset: 1 };
+    const res = await sslFetch(config.allowSelfSigned, `${base}/_find`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await res.json()) as FileMakerResponse;
+    const info = data.response.dataInfo;
+    const firstRecord = data.response.data?.[0];
+    return {
+      query: criterion,
+      foundCount: info?.foundCount ?? null,
+      totalRecordCount: info?.totalRecordCount ?? null,
+      returnedCount: info?.returnedCount ?? null,
+      firstRecordFields: firstRecord ? Object.keys(firstRecord.fieldData) : [],
+      fmMessage: data.messages[0]?.message ?? "",
+    };
+  });
+}
+
 // Fetch tracked records from the FileMaker StockBook layout in batches.
 // When `since` is provided only records with ModifiedDate > since are fetched
 // (delta / incremental sync). Without it every tracked record is returned.
@@ -302,11 +346,14 @@ export async function getAllStockbook(
     let knownTotal = 0;
 
     // When `since` is set, add a ModifiedDate range to the criterion so
-    // FileMaker returns only records changed after the last sync.
+    // FileMaker returns only records changed after the last sync date.
+    // ModifiedDate is a Date field (no time component) so we must use the
+    // date-only format "MM/DD/YYYY" — including a time component causes
+    // FileMaker to treat it as >= that date, returning everything.
     // Criteria in the same object are ANDed by FileMaker Data API.
     const criterion: Record<string, string> = { Tag_StockTracked: "1" };
     if (since) {
-      criterion["ModifiedDate"] = `>${toFileMakerTimestamp(since)}`;
+      criterion["ModifiedDate"] = `>${toFileMakerDate(since)}`;
     }
     const query = [criterion];
 

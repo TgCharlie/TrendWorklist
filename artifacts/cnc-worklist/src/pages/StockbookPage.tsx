@@ -390,7 +390,7 @@ export default function StockbookPage() {
               <TableRow className="bg-zinc-50 hover:bg-zinc-50">
                 <TableHead className="w-36 font-semibold text-zinc-700">PCODE</TableHead>
                 <TableHead className="font-semibold text-zinc-700">Item</TableHead>
-                <TableHead className="w-28 font-semibold text-zinc-700 text-right">
+                <TableHead className="w-16 font-semibold text-zinc-700 text-right whitespace-normal leading-tight">
                   Qty on Hand
                 </TableHead>
                 <TableHead className="w-20 font-semibold text-zinc-700">Unit</TableHead>

@@ -123,11 +123,11 @@ The `zod` output in `lib/api-spec/orval.config.ts` uses an absolute `target` pat
 
 **Current implementation** (`filemaker.ts` → `getAllStockbook`):
 - Detects format automatically using `fmTimestampIsSortable()` (no am/pm suffix = 24h)
-- **24h format**: adds `Replit_ModifiedDate > since` FM criterion → only changed records fetched from FM
-- **12h format**: always fetches all 18k+ records from FM (FM text comparison unreliable)
-- **Both formats**: applies a JS-side filter using `fmTextTimestampToMs()` (correct 12h→24h conversion) before upserting — catches any FM text comparison edge cases and avoids writing unchanged records to SQLite
+- **24h format**: adds `Replit_ModifiedDate > since` FM criterion → only changed records fetched from FM (fewer network bytes)
+- **12h format**: always fetches all 18k+ records from FM (FM lexicographic comparison unreliable with am/pm)
+- **Both formats**: upserts every record FM returns — no JS-side pre-filter. `Replit_ModifiedDate` may not update on every FM record change depending on FileMaker field configuration, so filtering by it would silently miss changes. Upsert is idempotent.
 
-`fmTextTimestampToMs()` handles all three formats above and is exported for use in routes.
+`fmTextTimestampToMs()` is used inside `filemaker.ts` only (to set `fmModifiedMs` on each record for logging).
 
 ### pnpm build approval
 `better-sqlite3` is in `onlyBuiltDependencies` in `pnpm-workspace.yaml` so pnpm builds its native module during `pnpm install`.

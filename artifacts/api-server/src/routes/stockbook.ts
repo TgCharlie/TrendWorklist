@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
 import { like, or, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
-import { getAllStockbook, debugStockbookFind, fmTextTimestampToMs } from "../lib/filemaker";
+import { getAllStockbook, debugStockbookFind } from "../lib/filemaker";
 import { getSetting, setSetting } from "../lib/settings";
 import { logger } from "../lib/logger";
 
@@ -52,11 +52,6 @@ async function syncStockbook(
     (res as unknown as { flush?: () => void }).flush?.();
   };
 
-  // sinceMs is used for JS-side filtering regardless of whether FM applied
-  // its own text criterion. This catches any records FM might miss (e.g. the
-  // Dec→Jan year-boundary edge case with MM/DD/YYYY 24h format).
-  const sinceMs = since ? fmTextTimestampToMs(since) : 0;
-
   let fmRecords: ReturnType<typeof getAllStockbook> extends Promise<infer T> ? T : never;
   try {
     fmRecords = await getAllStockbook((fetched, total) => {
@@ -90,27 +85,16 @@ async function syncStockbook(
     }, new Map<string, (typeof records)[0]>()).values(),
   );
 
-  // JS-side delta filter: only upsert records actually newer than the cutoff.
-  // Records with fmModifiedMs === 0 (missing/unparseable field) are always
-  // included so we never silently drop them.
-  const toUpsert = sinceMs > 0
-    ? deduped.filter((r) => r.fmModifiedMs === 0 || r.fmModifiedMs > sinceMs)
-    : deduped;
-
-  if (toUpsert.length === 0) {
-    // FM sent records but JS filtering found nothing newer — all up to date.
-    logger.info({ fetched: records.length, sinceMs }, "Stockbook sync: all records already up to date");
-    send({ type: "done", synced: 0, message: "Everything is up to date." });
-    res.end();
-    return;
-  }
-
+  // Always upsert every record FM returned. We do NOT filter by fmModifiedMs
+  // here because Replit_ModifiedDate may not update on every FM record change
+  // (depends on FileMaker field configuration). Upsert is idempotent so
+  // writing unchanged records is harmless.
   const now = new Date();
   let saved = 0;
-  const total = toUpsert.length;
+  const total = deduped.length;
 
   try {
-    for (const r of toUpsert) {
+    for (const r of deduped) {
       await db
         .insert(stockbookTable)
         .values({
@@ -159,8 +143,8 @@ async function syncStockbook(
     }
   }
 
-  logger.info({ fetched: records.length, updated: toUpsert.length }, "Stockbook sync complete");
-  send({ type: "done", synced: toUpsert.length, total: records.length, syncedAt: now.toISOString() });
+  logger.info({ fetched: records.length, upserted: deduped.length }, "Stockbook sync complete");
+  send({ type: "done", synced: deduped.length, total: records.length, syncedAt: now.toISOString() });
   res.end();
 }
 

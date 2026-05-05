@@ -53259,19 +53259,25 @@ var logger = (0, import_pino.default)({
 
 // src/routes/stockbook.ts
 var router5 = (0, import_express5.Router)();
+router5.get("/otypes", requireAuth, async (_req, res) => {
+  const rows = await db.selectDistinct({ otype: stockbookTable.otype }).from(stockbookTable).where(isNotNull(stockbookTable.otype)).orderBy(stockbookTable.otype);
+  const values = rows.map((r) => r.otype).filter(Boolean);
+  res.json({ otypes: values });
+});
 router5.get("/", requireAuth, async (req, res) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const otype = typeof req.query.otype === "string" ? req.query.otype.trim() : "";
   const terms = search.split(/\s+/).filter(Boolean);
-  const rows = terms.length ? await db.select().from(stockbookTable).where(
-    and(
-      ...terms.map(
-        (term) => or(
-          ilike(stockbookTable.pcode, `%${term}%`),
-          ilike(stockbookTable.description, `%${term}%`)
-        )
+  const conditions = [
+    ...terms.length ? terms.map(
+      (term) => or(
+        ilike(stockbookTable.pcode, `%${term}%`),
+        ilike(stockbookTable.description, `%${term}%`)
       )
-    )
-  ).orderBy(stockbookTable.pcode) : await db.select().from(stockbookTable).orderBy(stockbookTable.pcode);
+    ) : [],
+    ...otype ? [eq(stockbookTable.otype, otype)] : []
+  ];
+  const rows = conditions.length ? await db.select().from(stockbookTable).where(and(...conditions)).orderBy(stockbookTable.pcode) : await db.select().from(stockbookTable).orderBy(stockbookTable.pcode);
   const lastSynced = rows.reduce(
     (latest, r) => r.lastSyncedAt && (!latest || r.lastSyncedAt > latest) ? r.lastSyncedAt : latest,
     null

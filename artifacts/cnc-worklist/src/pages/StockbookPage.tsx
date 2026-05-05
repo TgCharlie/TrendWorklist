@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListStockbook,
@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -15,8 +22,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const API_BASE = "/api";
 
 interface SyncState {
   active: boolean;
@@ -72,16 +77,33 @@ function ProgressBar({
   );
 }
 
+const API_BASE_STOCKBOOK = "/api/stockbook";
+
 export default function StockbookPage() {
   const [search, setSearch] = useState("");
+  const [otype, setOtype] = useState("");
+  const [otypes, setOtypes] = useState<string[]>([]);
+  const [page, setPage] = useState(0);
   const [syncState, setSyncState] = useState<SyncState>(idleSyncState);
   const queryClient = useQueryClient();
+  const PAGE_SIZE = 200;
+
+  useEffect(() => {
+    fetch(`${API_BASE_STOCKBOOK}/otypes`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setOtypes(d.otypes ?? []))
+      .catch(() => {});
+  }, []);
 
   const trimmed = search.trim();
-  const params = useMemo(
-    () => (trimmed ? { search: trimmed } : undefined),
-    [trimmed]
-  );
+  const params = useMemo(() => {
+    setPage(0);
+    const p: { search?: string; otype?: string } = {};
+    if (trimmed) p.search = trimmed;
+    if (otype) p.otype = otype;
+    return Object.keys(p).length ? p : undefined;
+  }, [trimmed, otype]);
+
   const { data, isLoading, isError, error } = useListStockbook(params, {
     query: { staleTime: 30_000 },
   });
@@ -90,7 +112,7 @@ export default function StockbookPage() {
     setSyncState({ ...idleSyncState, active: true, phase: "fetch" });
 
     try {
-      const res = await fetch(`${API_BASE}/stockbook/sync/full`, {
+      const res = await fetch(`${API_BASE_STOCKBOOK}/sync/full`, {
         method: "POST",
         credentials: "include",
       });
@@ -182,6 +204,8 @@ export default function StockbookPage() {
   };
 
   const items = data?.items ?? [];
+  const totalPages = Math.ceil(items.length / PAGE_SIZE);
+  const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   // Prefer the syncedAt from the most recent sync result (set immediately on
   // the "done" SSE event) so the displayed date updates without waiting for a
   // GET refetch, which Express may answer with 304 and stale cached data.
@@ -272,8 +296,8 @@ export default function StockbookPage() {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-48 max-w-sm">
           <svg
             className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"
             fill="none"
@@ -294,11 +318,26 @@ export default function StockbookPage() {
             className="pl-9"
           />
         </div>
+
+        {otypes.length > 0 && (
+          <Select value={otype || "__all__"} onValueChange={(v) => setOtype(v === "__all__" ? "" : v)}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All types</SelectItem>
+              {otypes.map((o) => (
+                <SelectItem key={o} value={o}>{o}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         <Button
           type="button"
           variant="outline"
-          onClick={() => setSearch("")}
-          disabled={!search}
+          onClick={() => { setSearch(""); setOtype(""); }}
+          disabled={!search && !otype}
         >
           Clear
         </Button>
@@ -356,7 +395,7 @@ export default function StockbookPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((item) => (
+              {pageItems.map((item) => (
                 <TableRow key={item.id} className="hover:bg-zinc-50/50">
                   <TableCell className="font-mono text-sm text-zinc-800 font-medium">
                     {item.pcode}
@@ -406,6 +445,35 @@ export default function StockbookPage() {
           </Table>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm text-zinc-500">
+          <span>
+            Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, items.length)} of {items.length.toLocaleString()}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+            >
+              ← Prev
+            </Button>
+            <span className="tabular-nums">
+              {page + 1} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+            >
+              Next →
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
-import { and, or, ilike, sql } from "drizzle-orm";
+import { and, or, ilike, eq, isNotNull, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
 import { getAllStockbook, debugStockbookFind, fmTextTimestampToMs } from "../lib/filemaker";
 import { getSetting, setSetting } from "../lib/settings";
@@ -8,24 +8,38 @@ import { logger } from "../lib/logger";
 
 const router = Router();
 
+router.get("/otypes", requireAuth, async (_req, res): Promise<void> => {
+  const rows = await db
+    .selectDistinct({ otype: stockbookTable.otype })
+    .from(stockbookTable)
+    .where(isNotNull(stockbookTable.otype))
+    .orderBy(stockbookTable.otype);
+  const values = rows.map((r) => r.otype as string).filter(Boolean);
+  res.json({ otypes: values });
+});
+
 router.get("/", requireAuth, async (req, res): Promise<void> => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const otype = typeof req.query.otype === "string" ? req.query.otype.trim() : "";
   const terms = search.split(/\s+/).filter(Boolean);
 
-  const rows = terms.length
+  const conditions = [
+    ...(terms.length
+      ? terms.map((term) =>
+          or(
+            ilike(stockbookTable.pcode, `%${term}%`),
+            ilike(stockbookTable.description, `%${term}%`),
+          ),
+        )
+      : []),
+    ...(otype ? [eq(stockbookTable.otype, otype)] : []),
+  ];
+
+  const rows = conditions.length
     ? await db
         .select()
         .from(stockbookTable)
-        .where(
-          and(
-            ...terms.map((term) =>
-              or(
-                ilike(stockbookTable.pcode, `%${term}%`),
-                ilike(stockbookTable.description, `%${term}%`),
-              ),
-            ),
-          ),
-        )
+        .where(and(...conditions))
         .orderBy(stockbookTable.pcode)
     : await db.select().from(stockbookTable).orderBy(stockbookTable.pcode);
 

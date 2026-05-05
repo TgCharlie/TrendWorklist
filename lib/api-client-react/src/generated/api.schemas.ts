@@ -386,4 +386,5 @@ export interface StockbookSyncResponse {
 
 export type ListStockbookParams = {
   search?: string;
+  otype?: string;
 };

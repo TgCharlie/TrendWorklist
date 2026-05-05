@@ -62,6 +62,9 @@ interface StockbookItem {
   description: string;
   qtyOnHand: number;
   unit: string | null;
+  length?: number | null;
+  width?: number | null;
+  thickness?: number | null;
 }
 
 const EMPTY_FORM = { pcode: "", displayName: "", length: "", width: "", thickness: "", notes: "" };
@@ -278,6 +281,9 @@ export default function MaterialsPage() {
       ...f,
       pcode: item.pcode.toUpperCase(),
       displayName: item.description || f.displayName,
+      ...(item.length != null ? { length: String(item.length) } : {}),
+      ...(item.width != null ? { width: String(item.width) } : {}),
+      ...(item.thickness != null ? { thickness: String(item.thickness) } : {}),
     }));
   }
 

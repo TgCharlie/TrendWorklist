@@ -325,16 +325,17 @@ export async function debugStockbookFind(
   });
 }
 
-// Fetch tracked records from the FileMaker StockBook layout in batches.
-// `since` is the raw FM text value of Replit_ModifiedDate from the previous
-// sync (e.g. "05/05/2026 10:33:57 am"). When provided, only records where
-// Replit_ModifiedDate > since are fetched (delta sync). Without it every
-// tracked record is returned (initial / forced full sync).
-// Returns the records AND the maximum Replit_ModifiedDate text seen, which
-// the caller should persist so the next delta sync can use it as `since`.
+// Fetch all tracked records from the FileMaker StockBook layout in batches.
+// Always fetches every Tag_StockTracked=1 record — we do NOT use a FM-side
+// timestamp criterion because Replit_ModifiedDate is a TEXT field in
+// "MM/DD/YYYY HH:MM:SS am/pm" format and FileMaker's `>` operator uses
+// lexicographic comparison. 12-hour clock format does NOT sort correctly as a
+// string (e.g. "02:30:00 pm" < "11:13:48 am" lexicographically, even though
+// 2:30 PM is 3+ hours later), so any PM record with hour < stored hour would
+// be silently missed. Full fetch + JS-side upsert is the only reliable approach.
+// Returns the records AND the maximum Replit_ModifiedDate ms seen (for display).
 export async function getAllStockbook(
   onProgress?: (fetched: number, total: number) => void,
-  since?: string,
 ): Promise<{ records: FMStockbookRecord[]; maxFmTimestamp: string | null }> {
   return withToken(async (config, token) => {
     const layout = "StockBook";
@@ -345,15 +346,7 @@ export async function getAllStockbook(
     let maxFmTimestamp: string | null = null;
     let maxFmMs = 0;
 
-    // Replit_ModifiedDate is a text field storing "MM/DD/YYYY HH:MM:SS am/pm".
-    // Passing `since` directly lets FileMaker do a text > comparison in the
-    // exact same format — no timezone conversion needed.
-    // Criteria in the same object are ANDed by the FileMaker Data API.
-    const criterion: Record<string, string> = { Tag_StockTracked: "1" };
-    if (since) {
-      criterion["Replit_ModifiedDate"] = `>${since}`;
-    }
-    const query = [criterion];
+    const query = [{ Tag_StockTracked: "1" }];
 
     // fetchedFromFM counts every record received from FileMaker across all
     // batches (before the PCODE filter).  We use this for progress so the

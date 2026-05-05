@@ -112,5 +112,10 @@ The Electron build uses `express-session`'s built-in MemoryStore. Sessions reset
 ### Orval Config
 The `zod` output in `lib/api-spec/orval.config.ts` uses an absolute `target` path (not `workspace` + relative). This prevents orval from writing a barrel `index.ts` that references non-existent files.
 
+### StockBook sync strategy
+`Replit_ModifiedDate` is a FileMaker **text field** storing timestamps in `MM/DD/YYYY HH:MM:SS am/pm` (12-hour format). FileMaker's `>` operator on text fields uses **lexicographic comparison**, which is broken for 12-hour timestamps — e.g. `"02:30:00 pm"` sorts before `"11:13:48 am"` even though it's 3+ hours later, so any change made in hours 1–10 PM would be silently missed.
+
+**Fix**: `getAllStockbook` always fetches every `Tag_StockTracked=1` record without any FM-side timestamp filter. We track `maxFmTimestamp` for informational display only — it is never used as a FM `_find` criterion. Full fetch + full upsert is the only reliable approach with this field type.
+
 ### pnpm build approval
 `better-sqlite3` is in `onlyBuiltDependencies` in `pnpm-workspace.yaml` so pnpm builds its native module during `pnpm install`.

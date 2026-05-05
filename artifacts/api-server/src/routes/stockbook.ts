@@ -37,7 +37,6 @@ async function syncStockbook(
   req: Parameters<typeof requireAuth>[0],
   res: Parameters<typeof requireAuth>[1],
   progressInterval = 50,
-  since?: string,
 ): Promise<void> {
   (req.socket as { setNoDelay?: (v: boolean) => void } | null)?.setNoDelay?.(true);
 
@@ -58,7 +57,7 @@ async function syncStockbook(
       if (progressInterval <= 1 || fetched % progressInterval === 0 || fetched === total) {
         send({ type: "progress", phase: "fetch", fetched, total });
       }
-    }, since);
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker sync failed";
     logger.error({ err }, `FileMaker stockbook sync failed: ${message}`);
@@ -70,10 +69,7 @@ async function syncStockbook(
   const { records, maxFmTimestamp } = fmRecords;
 
   if (!records.length) {
-    const message = since
-      ? "No records have been modified in FileMaker since the last sync."
-      : "No records returned from FileMaker StockBook layout.";
-    send({ type: "done", synced: 0, message });
+    send({ type: "done", synced: 0, message: "No records returned from FileMaker StockBook layout." });
     res.end();
     return;
   }
@@ -128,15 +124,15 @@ async function syncStockbook(
     return;
   }
 
-  // Persist the highest Replit_ModifiedDate seen so the next delta sync
-  // can use it directly as the FileMaker _find criterion.
+  // Persist the highest Replit_ModifiedDate seen (for display / audit only —
+  // FM text comparison is unreliable for 12h timestamps so we always do a
+  // full fetch and never use this value as a FM _find criterion).
   if (maxFmTimestamp) {
     try {
-      logger.info({ maxFmTimestamp }, "Stockbook sync found latest Replit_ModifiedDate");
       await setSetting("stockbook_fm_since", maxFmTimestamp);
-      logger.info({ maxFmTimestamp }, "Stored stockbook_fm_since for next delta sync");
+      logger.info({ maxFmTimestamp }, "Stored latest Replit_ModifiedDate seen in this sync");
     } catch (e) {
-      logger.warn({ e }, "Could not persist stockbook_fm_since — next sync will be full");
+      logger.warn({ e }, "Could not persist stockbook_fm_since");
     }
   }
 
@@ -177,15 +173,11 @@ router.post("/sync", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/sync/full", requireAuth, async (req, res): Promise<void> => {
-  // Read the FM text timestamp saved after the last sync. On the very first
-  // run this setting is absent so `since` will be undefined → full fetch.
-  const since = await getSetting("stockbook_fm_since").catch(() => undefined);
-  if (since) {
-    logger.info({ since }, "Full sync: delta mode — fetching FM records where Replit_ModifiedDate > since");
-  } else {
-    logger.info("Full sync: no prior FM timestamp — fetching all tracked records");
-  }
-  await syncStockbook(req, res, 1, since);
+  // Always fetch all tracked records. FM text comparison is broken for 12h
+  // timestamps (lexicographic, not chronological), so we never filter on the
+  // FM side — full fetch + JS upsert is the only reliable approach.
+  logger.info("Sync: fetching all tracked records from FileMaker StockBook");
+  await syncStockbook(req, res, 1);
 });
 
 export default router;

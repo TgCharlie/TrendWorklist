@@ -105,6 +105,10 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
 }
 
 function StockItemModal({ item, onClose }: { item: StockbookRow | null; onClose: () => void }) {
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => { setImgError(false); }, [item?.pcode]);
+
   const qtyColor =
     !item ? "" :
     item.qtyOnHand <= 0 ? "text-red-600 font-bold text-2xl" :
@@ -123,6 +127,17 @@ function StockItemModal({ item, onClose }: { item: StockbookRow | null; onClose:
 
         {item && (
           <div className="space-y-4 pt-1">
+            {/* Product image */}
+            {item.image && !imgError && (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 overflow-hidden flex items-center justify-center" style={{ maxHeight: 240 }}>
+                <img
+                  src={item.image}
+                  alt={item.description || item.pcode}
+                  className="max-h-60 max-w-full object-contain"
+                  onError={() => setImgError(true)}
+                />
+              </div>
+            )}
             {/* Qty hero */}
             <div className="flex items-center gap-4 rounded-lg bg-zinc-50 border border-zinc-200 px-5 py-4">
               <div className="flex-1">

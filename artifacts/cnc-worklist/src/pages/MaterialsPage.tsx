@@ -69,6 +69,15 @@ interface StockbookItem {
 
 const EMPTY_FORM = { pcode: "", displayName: "", length: "", width: "", thickness: "", notes: "" };
 
+// Parse "2400 × 1800 × 16 - rest of description" into numeric dimensions.
+// The × separator may be the Unicode multiplication sign (U+00D7) or plain 'x'.
+// Returns null if the description doesn't start with the expected pattern.
+function parseDimsFromDescription(desc: string): { length: string; width: string; thickness: string } | null {
+  const m = desc.trim().match(/^(\d+(?:\.\d+)?)\s*[×xX]\s*(\d+(?:\.\d+)?)\s*[×xX]\s*(\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  return { length: m[1], width: m[2], thickness: m[3] };
+}
+
 function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StockbookItem[]>([]);
@@ -275,13 +284,18 @@ export default function MaterialsPage() {
 
   function handleStockbookSelect(item: StockbookItem) {
     setSelectedStockbookItem(item);
+    // Dimensions: prefer explicit fields; fall back to parsing the description
+    // which follows the pattern "2400 × 1800 × 16 - rest of name".
+    // Always set all three fields explicitly so stale values from a previous
+    // selection are never carried over.
+    const dims = parseDimsFromDescription(item.description ?? "");
     setForm((f) => ({
       ...f,
       pcode: item.pcode.toUpperCase(),
       displayName: item.description ?? "",
-      ...(item.length != null ? { length: String(item.length) } : {}),
-      ...(item.width != null ? { width: String(item.width) } : {}),
-      ...(item.thickness != null ? { thickness: String(item.thickness) } : {}),
+      length: item.length != null ? String(item.length) : (dims?.length ?? ""),
+      width:  item.width  != null ? String(item.width)  : (dims?.width  ?? ""),
+      thickness: item.thickness != null ? String(item.thickness) : (dims?.thickness ?? ""),
     }));
   }
 

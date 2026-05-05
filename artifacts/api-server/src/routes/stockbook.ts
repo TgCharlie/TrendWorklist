@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
-import { like, or, sql } from "drizzle-orm";
+import { like, max, or, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
 import { getAllStockbook } from "../lib/filemaker";
 import { logger } from "../lib/logger";
@@ -36,6 +36,7 @@ async function syncStockbook(
   req: Parameters<typeof requireAuth>[0],
   res: Parameters<typeof requireAuth>[1],
   progressInterval = 50,
+  since?: Date,
 ): Promise<void> {
   (req.socket as { setNoDelay?: (v: boolean) => void } | null)?.setNoDelay?.(true);
 
@@ -56,7 +57,7 @@ async function syncStockbook(
       if (progressInterval <= 1 || fetched % progressInterval === 0 || fetched === total) {
         send({ type: "progress", phase: "fetch", fetched, total });
       }
-    });
+    }, since);
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker sync failed";
     logger.error({ err }, `FileMaker stockbook sync failed: ${message}`);
@@ -66,7 +67,10 @@ async function syncStockbook(
   }
 
   if (!fmRecords.length) {
-    send({ type: "done", synced: 0, message: "No records returned from FileMaker StockBook layout." });
+    const message = since
+      ? "No records have been modified in FileMaker since the last sync."
+      : "No records returned from FileMaker StockBook layout.";
+    send({ type: "done", synced: 0, message });
     res.end();
     return;
   }
@@ -130,7 +134,18 @@ router.post("/sync", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/sync/full", requireAuth, async (req, res): Promise<void> => {
-  await syncStockbook(req, res, 1);
+  // Use the latest lastSyncedAt across all rows as the delta cutoff.
+  // On the very first sync this will be null and all tracked records are fetched.
+  const [row] = await db
+    .select({ lastSync: max(stockbookTable.lastSyncedAt) })
+    .from(stockbookTable);
+  const since = row?.lastSync ?? undefined;
+  if (since) {
+    logger.info({ since }, "Full sync: delta mode — fetching FM records modified after last sync");
+  } else {
+    logger.info("Full sync: no prior sync found — fetching all tracked records");
+  }
+  await syncStockbook(req, res, 1, since);
 });
 
 export default router;

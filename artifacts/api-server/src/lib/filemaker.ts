@@ -274,12 +274,25 @@ export interface FMStockbookRecord {
   tracked: boolean;
 }
 
-// Fetch all records from the FileMaker StockBook layout in batches.
-// Uses POST /_find with a wildcard query so we get ALL records in the table
-// (not just the current found set, which can be a small subset).
-// onProgress(fetched, total) is called after each batch with running totals.
+// Format a JS Date as the FileMaker timestamp string expected by _find:
+// "MM/DD/YYYY HH:MM:SS"
+function toFileMakerTimestamp(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${mm}/${dd}/${yyyy} ${hh}:${min}:${ss}`;
+}
+
+// Fetch tracked records from the FileMaker StockBook layout in batches.
+// When `since` is provided only records with ModifiedDate > since are fetched
+// (delta / incremental sync). Without it every tracked record is returned.
+// onProgress(fetched, total) is called after each batch.
 export async function getAllStockbook(
   onProgress?: (fetched: number, total: number) => void,
+  since?: Date,
 ): Promise<FMStockbookRecord[]> {
   return withToken(async (config, token) => {
     const layout = "StockBook";
@@ -288,10 +301,14 @@ export async function getAllStockbook(
     let offset = 1;
     let knownTotal = 0;
 
-    // Find all records where Tag_StockTracked = "1" directly in FileMaker.
-    // This returns the 18k+ tracked items rather than the 814-record found set
-    // that PCODE: "*" resolves to (records with a non-empty PCODE only).
-    const query = [{ Tag_StockTracked: "1" }];
+    // When `since` is set, add a ModifiedDate range to the criterion so
+    // FileMaker returns only records changed after the last sync.
+    // Criteria in the same object are ANDed by FileMaker Data API.
+    const criterion: Record<string, string> = { Tag_StockTracked: "1" };
+    if (since) {
+      criterion["ModifiedDate"] = `>${toFileMakerTimestamp(since)}`;
+    }
+    const query = [criterion];
 
     // fetchedFromFM counts every record received from FileMaker across all
     // batches (before the PCODE filter).  We use this for progress so the

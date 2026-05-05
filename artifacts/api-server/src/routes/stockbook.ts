@@ -308,24 +308,14 @@ router.get("/image-proxy", async (req, res): Promise<void> => {
   }
 
   try {
-    const upstream = await fetchFMImage(url);
-    if (!upstream.ok) {
-      res.status(upstream.status).json({ error: "FileMaker returned non-OK status" });
-      return;
-    }
-    const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
+    const { body, contentType } = await fetchFMImage(url);
     res.setHeader("Content-Type", contentType);
     res.setHeader("Cache-Control", "public, max-age=3600");
-    if (upstream.body) {
-      const { Readable } = await import("stream");
-      Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
-    } else {
-      const buf = await upstream.arrayBuffer();
-      res.send(Buffer.from(buf));
-    }
+    res.send(body);
   } catch (err) {
-    logger.error({ err, url }, "Image proxy fetch failed");
-    res.status(502).json({ error: "Failed to fetch image from FileMaker" });
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error({ err, url }, `Image proxy fetch failed: ${msg}`);
+    res.status(502).json({ error: msg });
   }
 });
 

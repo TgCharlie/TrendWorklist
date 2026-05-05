@@ -416,7 +416,11 @@ export async function getAllStockbook(
           otype: sanitizeStr(r.fieldData["OTYPE"] as string | undefined),
           project: sanitizeStr(r.fieldData["Project"] as string | undefined),
           pid: sanitizeStr(r.fieldData["PID"] as string | undefined),
-          image: sanitizeStr(r.fieldData["Image"] as string | undefined) ?? null,
+          // Store the Data API container endpoint URL (Bearer-token accessible)
+          // rather than the Streaming_SSL URL (which rejects all token types).
+          image: sanitizeStr(r.fieldData["Image"] as string | undefined)
+            ? `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/layouts/${encodeURIComponent(layout)}/records/${r.recordId}/containers/Image/1`
+            : null,
           tracked: rawTracked === 1 || rawTracked === "1" || rawTracked === true,
           fmModifiedMs,
         });
@@ -438,14 +442,25 @@ export async function getAllStockbook(
   });
 }
 
-// Fetch a FileMaker container/streaming image URL using Basic Auth credentials.
-// These streaming URLs (Streaming_SSL/MainDB/...) require the FM username/password
-// rather than a Data API bearer token.
-export async function fetchFMImage(imageUrl: string): Promise<Response> {
-  const config = await getConfig();
-  const credentials = Buffer.from(`${config.username}:${config.password}`).toString("base64");
-  return sslFetch(config.allowSelfSigned, imageUrl, {
-    headers: { Authorization: `Basic ${credentials}` },
+// Fetch a FileMaker container image via the Data API container endpoint.
+// The stored URL is already in the correct format:
+//   /fmi/data/vLatest/databases/<db>/layouts/<layout>/records/<id>/containers/Image/1
+// This endpoint accepts the Data API Bearer token, unlike the Streaming_SSL URLs.
+export async function fetchFMImage(imageUrl: string): Promise<{ body: Buffer; contentType: string }> {
+  return withToken(async (config, token) => {
+    const res = await sslFetch(config.allowSelfSigned, imageUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "(unreadable)");
+      throw new Error(`FM image fetch failed ${res.status}: ${errBody}`);
+    }
+
+    // Buffer fully inside withToken so the token stays live during the read.
+    const buf = Buffer.from(await res.arrayBuffer());
+    const contentType = res.headers.get("content-type") ?? "application/octet-stream";
+    return { body: buf, contentType };
   });
 }
 

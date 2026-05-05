@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
 import { like, or, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
-import { getAllStockbook, debugStockbookFind } from "../lib/filemaker";
+import { getAllStockbook, debugStockbookFind, fmTextTimestampToMs } from "../lib/filemaker";
 import { getSetting, setSetting } from "../lib/settings";
 import { logger } from "../lib/logger";
 
@@ -82,16 +82,41 @@ async function syncStockbook(
     }, new Map<string, (typeof records)[0]>()).values(),
   );
 
-  // Always upsert every record FM returned. We do NOT filter by fmModifiedMs
-  // here because Replit_ModifiedDate may not update on every FM record change
-  // (depends on FileMaker field configuration). Upsert is idempotent so
-  // writing unchanged records is harmless.
+  // JS-side delta filter: read the epoch ms of the stored cutoff and only
+  // upsert records whose Replit_ModifiedDate (parsed to epoch ms) is newer.
+  // This avoids writing all 16k+ unchanged records to SQLite on every sync.
+  //
+  // We do NOT use a FM-side criterion for this because FileMaker text
+  // comparison of mixed 12h/24h timestamp formats gives wrong ordering
+  // (e.g. "02:30:00 pm" < "11:45:01" even though 2:30 PM is later).
+  // Fetching all records from FM and filtering here is reliable regardless
+  // of which timestamp format Replit_ModifiedDate uses.
+  //
+  // Records with fmModifiedMs === 0 (empty / unparseable field) are always
+  // included — we never silently drop a record we can't parse.
+  const storedSince = await getSetting("stockbook_fm_since").catch(() => null);
+  const sinceMs = storedSince ? fmTextTimestampToMs(storedSince) : 0;
+  const toUpsert = sinceMs > 0
+    ? deduped.filter((r) => r.fmModifiedMs === 0 || r.fmModifiedMs > sinceMs)
+    : deduped;
+
+  if (toUpsert.length === 0) {
+    logger.info({ fetched: records.length, sinceMs }, "Stockbook sync: all records already up to date");
+    // Still persist maxFmTimestamp so the cutoff stays fresh even if nothing changed.
+    if (maxFmTimestamp) {
+      await setSetting("stockbook_fm_since", maxFmTimestamp).catch(() => null);
+    }
+    send({ type: "done", synced: 0, total: records.length, syncedAt: new Date().toISOString() });
+    res.end();
+    return;
+  }
+
   const now = new Date();
   let saved = 0;
-  const total = deduped.length;
+  const total = toUpsert.length;
 
   try {
-    for (const r of deduped) {
+    for (const r of toUpsert) {
       await db
         .insert(stockbookTable)
         .values({
@@ -129,8 +154,7 @@ async function syncStockbook(
   }
 
   // Persist the highest Replit_ModifiedDate seen so the next sync can use it
-  // as the `since` cutoff.  When Replit_ModifiedDate is 24h format this also
-  // enables FM-side delta filtering (fewer records fetched from FM).
+  // as the JS-side epoch cutoff for delta filtering.
   if (maxFmTimestamp) {
     try {
       await setSetting("stockbook_fm_since", maxFmTimestamp);
@@ -140,8 +164,8 @@ async function syncStockbook(
     }
   }
 
-  logger.info({ fetched: records.length, upserted: deduped.length }, "Stockbook sync complete");
-  send({ type: "done", synced: deduped.length, total: records.length, syncedAt: now.toISOString() });
+  logger.info({ fetched: records.length, upserted: toUpsert.length }, "Stockbook sync complete");
+  send({ type: "done", synced: toUpsert.length, total: records.length, syncedAt: now.toISOString() });
   res.end();
 }
 

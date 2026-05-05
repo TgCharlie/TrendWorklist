@@ -53303,11 +53303,23 @@ async function syncStockbook(req, res, progressInterval = 50) {
       return map2;
     }, /* @__PURE__ */ new Map()).values()
   );
+  const storedSince = await getSetting("stockbook_fm_since").catch(() => null);
+  const sinceMs = storedSince ? fmTextTimestampToMs(storedSince) : 0;
+  const toUpsert = sinceMs > 0 ? deduped.filter((r) => r.fmModifiedMs === 0 || r.fmModifiedMs > sinceMs) : deduped;
+  if (toUpsert.length === 0) {
+    logger.info({ fetched: records.length, sinceMs }, "Stockbook sync: all records already up to date");
+    if (maxFmTimestamp) {
+      await setSetting("stockbook_fm_since", maxFmTimestamp).catch(() => null);
+    }
+    send({ type: "done", synced: 0, total: records.length, syncedAt: (/* @__PURE__ */ new Date()).toISOString() });
+    res.end();
+    return;
+  }
   const now = /* @__PURE__ */ new Date();
   let saved = 0;
-  const total = deduped.length;
+  const total = toUpsert.length;
   try {
-    for (const r of deduped) {
+    for (const r of toUpsert) {
       await db.insert(stockbookTable).values({
         pcode: r.pcode,
         description: r.description || "",
@@ -53347,8 +53359,8 @@ async function syncStockbook(req, res, progressInterval = 50) {
       logger.warn({ e }, "Could not persist stockbook_fm_since");
     }
   }
-  logger.info({ fetched: records.length, upserted: deduped.length }, "Stockbook sync complete");
-  send({ type: "done", synced: deduped.length, total: records.length, syncedAt: now.toISOString() });
+  logger.info({ fetched: records.length, upserted: toUpsert.length }, "Stockbook sync complete");
+  send({ type: "done", synced: toUpsert.length, total: records.length, syncedAt: now.toISOString() });
   res.end();
 }
 router5.get("/debug-delta", requireAuth, async (req, res) => {

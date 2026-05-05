@@ -257,11 +257,16 @@ router.patch("/:pcode/tracked", requireAuth, async (req, res): Promise<void> => 
       res.status(404).json({ error: `PCODE "${pcode}" not found in FileMaker StockBook` });
       return;
     }
-    // Mirror the change in the local DB so the UI reflects it immediately.
-    await db
-      .update(stockbookTable)
-      .set({ tagStockTracked: tracked, updatedAt: new Date() })
-      .where(eq(stockbookTable.pcode, pcode));
+    if (tracked) {
+      // Re-enabling tracking: update the flag in the local DB.
+      await db
+        .update(stockbookTable)
+        .set({ tagStockTracked: true, updatedAt: new Date() })
+        .where(eq(stockbookTable.pcode, pcode));
+    } else {
+      // Disabling tracking: remove the record from the local DB entirely.
+      await db.delete(stockbookTable).where(eq(stockbookTable.pcode, pcode));
+    }
     res.json({ pcode, tracked });
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker update failed";

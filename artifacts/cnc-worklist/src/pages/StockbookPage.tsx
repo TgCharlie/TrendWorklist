@@ -90,14 +90,32 @@ export default function StockbookPage() {
   const queryClient = useQueryClient();
   const PAGE_SIZE = 200;
 
+  // PCODEs that have been optimistically removed from the list (untracked)
+  const [removedPcodes, setRemovedPcodes] = useState<Set<string>>(new Set());
+
   const updateTrackedMutation = useUpdateStockTracked({
     mutation: {
       onSuccess: (result) => {
+        if (!result.tracked) {
+          // Item was deleted from the local DB — remove it from the visible list.
+          setRemovedPcodes((prev) => new Set([...prev, result.pcode]));
+          setTrackedOverrides((prev) => {
+            const next = { ...prev };
+            delete next[result.pcode];
+            return next;
+          });
+        } else {
+          setTrackedOverrides((prev) => ({ ...prev, [result.pcode]: true }));
+        }
         queryClient.invalidateQueries({ queryKey: getListStockbookQueryKey() });
-        setTrackedOverrides((prev) => ({ ...prev, [result.pcode]: result.tracked }));
       },
       onError: (_err, variables) => {
-        // Revert optimistic update on failure
+        // Revert optimistic removal on failure
+        setRemovedPcodes((prev) => {
+          const next = new Set(prev);
+          next.delete(variables.pcode);
+          return next;
+        });
         setTrackedOverrides((prev) => {
           const next = { ...prev };
           delete next[variables.pcode];
@@ -222,7 +240,7 @@ export default function StockbookPage() {
     }
   };
 
-  const items = data?.items ?? [];
+  const items = (data?.items ?? []).filter((i) => !removedPcodes.has(i.pcode));
   const totalPages = Math.ceil(items.length / PAGE_SIZE);
   const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   // Prefer the syncedAt from the most recent sync result (set immediately on

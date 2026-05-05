@@ -47,6 +47,7 @@ async function syncStockbook(
 
   const send = (data: object) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
+    (res as unknown as { flush?: () => void }).flush?.();
   };
 
   let fmRecords: Awaited<ReturnType<typeof getAllStockbook>>;

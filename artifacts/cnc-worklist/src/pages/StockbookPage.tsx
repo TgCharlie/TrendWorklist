@@ -48,14 +48,26 @@ function fmt(d: string | null | undefined): string {
   });
 }
 
-function ProgressBar({ value, max }: { value: number; max: number }) {
+function ProgressBar({
+  value,
+  max,
+  indeterminate = false,
+}: {
+  value: number;
+  max: number;
+  indeterminate?: boolean;
+}) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
   return (
     <div className="w-full bg-zinc-200 rounded-full h-2 overflow-hidden">
-      <div
-        className="bg-blue-500 h-2 rounded-full transition-all duration-200"
-        style={{ width: `${pct}%` }}
-      />
+      {indeterminate ? (
+        <div className="h-2 rounded-full bg-blue-400 animate-pulse w-full" />
+      ) : (
+        <div
+          className="bg-blue-500 h-2 rounded-full transition-all duration-200"
+          style={{ width: `${pct}%` }}
+        />
+      )}
     </div>
   );
 }
@@ -177,18 +189,21 @@ export default function StockbookPage() {
     if (syncState.phase === "fetch") {
       const total = syncState.fetchTotal;
       const fetched = syncState.fetched;
+      const hasProgress = total > 0 || fetched > 0;
       return {
-        label: total
+        label: hasProgress
           ? `Fetching from FileMaker… ${fetched.toLocaleString()} / ${total.toLocaleString()} records`
           : `Fetching from FileMaker…`,
         value: fetched,
         max: total || fetched || 1,
+        indeterminate: !hasProgress,
       };
     }
     return {
       label: `Saving to local database… ${syncState.saved.toLocaleString()} / ${syncState.saveTotal.toLocaleString()} records`,
       value: syncState.saved,
       max: syncState.saveTotal || 1,
+      indeterminate: false,
     };
   })();
 
@@ -237,13 +252,17 @@ export default function StockbookPage() {
         <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 space-y-2">
           <div className="flex items-center justify-between text-sm text-blue-700">
             <span>{syncProgress.label}</span>
-            <span className="font-medium tabular-nums">
-              {syncProgress.max > 0
-                ? `${Math.min(100, Math.round((syncProgress.value / syncProgress.max) * 100))}%`
-                : ""}
-            </span>
+            {!syncProgress.indeterminate && syncProgress.max > 0 && (
+              <span className="font-medium tabular-nums">
+                {Math.min(100, Math.round((syncProgress.value / syncProgress.max) * 100))}%
+              </span>
+            )}
           </div>
-          <ProgressBar value={syncProgress.value} max={syncProgress.max} />
+          <ProgressBar
+            value={syncProgress.value}
+            max={syncProgress.max}
+            indeterminate={syncProgress.indeterminate}
+          />
         </div>
       )}
 

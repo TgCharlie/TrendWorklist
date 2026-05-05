@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
 import { like, or, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
-import { getAllStockbook, debugStockbookFind } from "../lib/filemaker";
+import { getAllStockbook, debugStockbookFind, fmTextTimestampToMs } from "../lib/filemaker";
 import { getSetting, setSetting } from "../lib/settings";
 import { logger } from "../lib/logger";
 
@@ -37,6 +37,7 @@ async function syncStockbook(
   req: Parameters<typeof requireAuth>[0],
   res: Parameters<typeof requireAuth>[1],
   progressInterval = 50,
+  since?: string,
 ): Promise<void> {
   (req.socket as { setNoDelay?: (v: boolean) => void } | null)?.setNoDelay?.(true);
 
@@ -51,13 +52,18 @@ async function syncStockbook(
     (res as unknown as { flush?: () => void }).flush?.();
   };
 
+  // sinceMs is used for JS-side filtering regardless of whether FM applied
+  // its own text criterion. This catches any records FM might miss (e.g. the
+  // Dec→Jan year-boundary edge case with MM/DD/YYYY 24h format).
+  const sinceMs = since ? fmTextTimestampToMs(since) : 0;
+
   let fmRecords: ReturnType<typeof getAllStockbook> extends Promise<infer T> ? T : never;
   try {
     fmRecords = await getAllStockbook((fetched, total) => {
       if (progressInterval <= 1 || fetched % progressInterval === 0 || fetched === total) {
         send({ type: "progress", phase: "fetch", fetched, total });
       }
-    });
+    }, since);
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker sync failed";
     logger.error({ err }, `FileMaker stockbook sync failed: ${message}`);
@@ -69,12 +75,14 @@ async function syncStockbook(
   const { records, maxFmTimestamp } = fmRecords;
 
   if (!records.length) {
-    send({ type: "done", synced: 0, message: "No records returned from FileMaker StockBook layout." });
+    // FM returned nothing — either truly empty or the delta filtered everything.
+    // Report as "up to date" so the user knows the sync ran.
+    send({ type: "done", synced: 0, message: since ? "Everything is up to date." : "No records returned from FileMaker StockBook." });
     res.end();
     return;
   }
 
-  // Deduplicate by pcode — FileMaker can return duplicate PCODEs; keep last occurrence.
+  // Deduplicate by pcode — FileMaker can return duplicate PCODEs; keep last.
   const deduped = Array.from(
     records.reduce((map, r) => {
       map.set(r.pcode, r);
@@ -82,12 +90,27 @@ async function syncStockbook(
     }, new Map<string, (typeof records)[0]>()).values(),
   );
 
+  // JS-side delta filter: only upsert records actually newer than the cutoff.
+  // Records with fmModifiedMs === 0 (missing/unparseable field) are always
+  // included so we never silently drop them.
+  const toUpsert = sinceMs > 0
+    ? deduped.filter((r) => r.fmModifiedMs === 0 || r.fmModifiedMs > sinceMs)
+    : deduped;
+
+  if (toUpsert.length === 0) {
+    // FM sent records but JS filtering found nothing newer — all up to date.
+    logger.info({ fetched: records.length, sinceMs }, "Stockbook sync: all records already up to date");
+    send({ type: "done", synced: 0, message: "Everything is up to date." });
+    res.end();
+    return;
+  }
+
   const now = new Date();
   let saved = 0;
-  const total = deduped.length;
+  const total = toUpsert.length;
 
   try {
-    for (const r of deduped) {
+    for (const r of toUpsert) {
       await db
         .insert(stockbookTable)
         .values({
@@ -124,19 +147,20 @@ async function syncStockbook(
     return;
   }
 
-  // Persist the highest Replit_ModifiedDate seen (for display / audit only —
-  // FM text comparison is unreliable for 12h timestamps so we always do a
-  // full fetch and never use this value as a FM _find criterion).
+  // Persist the highest Replit_ModifiedDate seen so the next sync can use it
+  // as the `since` cutoff.  When Replit_ModifiedDate is 24h format this also
+  // enables FM-side delta filtering (fewer records fetched from FM).
   if (maxFmTimestamp) {
     try {
       await setSetting("stockbook_fm_since", maxFmTimestamp);
-      logger.info({ maxFmTimestamp }, "Stored latest Replit_ModifiedDate seen in this sync");
+      logger.info({ maxFmTimestamp }, "Stored stockbook_fm_since for next delta sync");
     } catch (e) {
       logger.warn({ e }, "Could not persist stockbook_fm_since");
     }
   }
 
-  send({ type: "done", synced: records.length, syncedAt: now.toISOString() });
+  logger.info({ fetched: records.length, updated: toUpsert.length }, "Stockbook sync complete");
+  send({ type: "done", synced: toUpsert.length, total: records.length, syncedAt: now.toISOString() });
   res.end();
 }
 
@@ -173,11 +197,17 @@ router.post("/sync", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/sync/full", requireAuth, async (req, res): Promise<void> => {
-  // Always fetch all tracked records. FM text comparison is broken for 12h
-  // timestamps (lexicographic, not chronological), so we never filter on the
-  // FM side — full fetch + JS upsert is the only reliable approach.
-  logger.info("Sync: fetching all tracked records from FileMaker StockBook");
-  await syncStockbook(req, res, 1);
+  // Read the FM timestamp stored after the last sync and pass it as `since`.
+  // getAllStockbook uses it as a FM-side criterion only when it's in a 24h
+  // format (reliable text sort). Either way, the route also applies a JS-side
+  // filter so nothing is ever silently missed.
+  const since = await getSetting("stockbook_fm_since").catch(() => undefined);
+  if (since) {
+    logger.info({ since }, "Stockbook sync: using stored FM timestamp as delta cutoff");
+  } else {
+    logger.info("Stockbook sync: no prior FM timestamp — fetching all tracked records");
+  }
+  await syncStockbook(req, res, 1, since || undefined);
 });
 
 export default router;

@@ -113,9 +113,21 @@ The Electron build uses `express-session`'s built-in MemoryStore. Sessions reset
 The `zod` output in `lib/api-spec/orval.config.ts` uses an absolute `target` path (not `workspace` + relative). This prevents orval from writing a barrel `index.ts` that references non-existent files.
 
 ### StockBook sync strategy
-`Replit_ModifiedDate` is a FileMaker **text field** storing timestamps in `MM/DD/YYYY HH:MM:SS am/pm` (12-hour format). FileMaker's `>` operator on text fields uses **lexicographic comparison**, which is broken for 12-hour timestamps — e.g. `"02:30:00 pm"` sorts before `"11:13:48 am"` even though it's 3+ hours later, so any change made in hours 1–10 PM would be silently missed.
+`Replit_ModifiedDate` is a FileMaker **text field** storing timestamps. FileMaker's `>` operator uses **lexicographic comparison**, which is format-dependent:
 
-**Fix**: `getAllStockbook` always fetches every `Tag_StockTracked=1` record without any FM-side timestamp filter. We track `maxFmTimestamp` for informational display only — it is never used as a FM `_find` criterion. Full fetch + full upsert is the only reliable approach with this field type.
+| FM field format | FM-side `>` comparison | Notes |
+|---|---|---|
+| `MM/DD/YYYY HH:MM:SS am/pm` | ❌ Broken (12h doesn't sort correctly) | Original format — PM records silently missed |
+| `MM/DD/YYYY HH:MM:SS` | ✅ Works within same year | Dec→Jan boundary is an edge case |
+| `YYYY/MM/DD HH:MM:SS` | ✅ Perfect | Recommended if you can change FM |
+
+**Current implementation** (`filemaker.ts` → `getAllStockbook`):
+- Detects format automatically using `fmTimestampIsSortable()` (no am/pm suffix = 24h)
+- **24h format**: adds `Replit_ModifiedDate > since` FM criterion → only changed records fetched from FM
+- **12h format**: always fetches all 18k+ records from FM (FM text comparison unreliable)
+- **Both formats**: applies a JS-side filter using `fmTextTimestampToMs()` (correct 12h→24h conversion) before upserting — catches any FM text comparison edge cases and avoids writing unchanged records to SQLite
+
+`fmTextTimestampToMs()` handles all three formats above and is exported for use in routes.
 
 ### pnpm build approval
 `better-sqlite3` is in `onlyBuiltDependencies` in `pnpm-workspace.yaml` so pnpm builds its native module during `pnpm install`.

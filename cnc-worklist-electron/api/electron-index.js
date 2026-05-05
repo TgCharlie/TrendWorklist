@@ -53057,20 +53057,28 @@ async function getStockLevel(pcode) {
   });
 }
 function fmTextTimestampToMs(s) {
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2}) (am|pm)$/i);
-  if (!m) return 0;
-  const [, mm, dd, yyyy, hh, min, ss, ap] = m;
-  let hours = parseInt(hh, 10);
-  if (ap.toLowerCase() === "pm" && hours !== 12) hours += 12;
-  if (ap.toLowerCase() === "am" && hours === 12) hours = 0;
-  return Date.UTC(
-    parseInt(yyyy, 10),
-    parseInt(mm, 10) - 1,
-    parseInt(dd, 10),
-    hours,
-    parseInt(min, 10),
-    parseInt(ss, 10)
-  );
+  const iso = s.match(/^(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+  if (iso) {
+    const [, yyyy, mm, dd, hh, min, ss] = iso;
+    return Date.UTC(+yyyy, +mm - 1, +dd, +hh, +min, +ss);
+  }
+  const h24 = s.match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2})$/);
+  if (h24) {
+    const [, mm, dd, yyyy, hh, min, ss] = h24;
+    return Date.UTC(+yyyy, +mm - 1, +dd, +hh, +min, +ss);
+  }
+  const h12 = s.match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2}) (am|pm)$/i);
+  if (h12) {
+    const [, mm, dd, yyyy, hh, min, ss, ap] = h12;
+    let hours = +hh;
+    if (ap.toLowerCase() === "pm" && hours !== 12) hours += 12;
+    if (ap.toLowerCase() === "am" && hours === 12) hours = 0;
+    return Date.UTC(+yyyy, +mm - 1, +dd, hours, +min, +ss);
+  }
+  return 0;
+}
+function fmTimestampIsSortable(s) {
+  return /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/.test(s) || /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}$/.test(s);
 }
 async function debugStockbookFind(criterion, limit = 1) {
   return withToken(async (config2, token) => {
@@ -53095,7 +53103,7 @@ async function debugStockbookFind(criterion, limit = 1) {
     };
   });
 }
-async function getAllStockbook(onProgress) {
+async function getAllStockbook(onProgress, since) {
   return withToken(async (config2, token) => {
     const layout = "StockBook";
     const batchSize = 1e3;
@@ -53104,7 +53112,11 @@ async function getAllStockbook(onProgress) {
     let knownTotal = 0;
     let maxFmTimestamp = null;
     let maxFmMs = 0;
-    const query = [{ Tag_StockTracked: "1" }];
+    const criterion = { Tag_StockTracked: "1" };
+    if (since && fmTimestampIsSortable(since)) {
+      criterion["Replit_ModifiedDate"] = `>${since}`;
+    }
+    const query = [criterion];
     let fetchedFromFM = 0;
     while (true) {
       const { records, total } = await findRecordsPage(
@@ -53124,21 +53136,20 @@ async function getAllStockbook(onProgress) {
         const item = sanitizeStr(
           r.fieldData["Item"] ?? r.fieldData["Description"]
         ) ?? "";
+        const fmTs = sanitizeStr(r.fieldData["Replit_ModifiedDate"]);
+        const fmModifiedMs = fmTs ? fmTextTimestampToMs(fmTs) : 0;
         results.push({
           pcode,
           description: item,
           qtyOnHand: Number(r.fieldData["QtyOnHand"] ?? 0),
           unit: sanitizeStr(r.fieldData["Unit"]),
           location: sanitizeStr(r.fieldData["Location"]),
-          tracked: true
+          tracked: true,
+          fmModifiedMs
         });
-        const fmTs = sanitizeStr(r.fieldData["Replit_ModifiedDate"]);
-        if (fmTs) {
-          const ms = fmTextTimestampToMs(fmTs);
-          if (ms > maxFmMs) {
-            maxFmMs = ms;
-            maxFmTimestamp = fmTs;
-          }
+        if (fmTs && fmModifiedMs > maxFmMs) {
+          maxFmMs = fmModifiedMs;
+          maxFmTimestamp = fmTs;
         }
       }
       if (onProgress) {
@@ -53260,7 +53271,7 @@ router5.get("/", requireAuth, async (req, res) => {
   );
   res.json({ items: rows, lastSyncedAt: lastSynced, total: rows.length });
 });
-async function syncStockbook(req, res, progressInterval = 50) {
+async function syncStockbook(req, res, progressInterval = 50, since) {
   req.socket?.setNoDelay?.(true);
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -53273,13 +53284,14 @@ async function syncStockbook(req, res, progressInterval = 50) {
 `);
     res.flush?.();
   };
+  const sinceMs = since ? fmTextTimestampToMs(since) : 0;
   let fmRecords;
   try {
     fmRecords = await getAllStockbook((fetched, total2) => {
       if (progressInterval <= 1 || fetched % progressInterval === 0 || fetched === total2) {
         send({ type: "progress", phase: "fetch", fetched, total: total2 });
       }
-    });
+    }, since);
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker sync failed";
     logger.error({ err }, `FileMaker stockbook sync failed: ${message}`);
@@ -53289,7 +53301,7 @@ async function syncStockbook(req, res, progressInterval = 50) {
   }
   const { records, maxFmTimestamp } = fmRecords;
   if (!records.length) {
-    send({ type: "done", synced: 0, message: "No records returned from FileMaker StockBook layout." });
+    send({ type: "done", synced: 0, message: since ? "Everything is up to date." : "No records returned from FileMaker StockBook." });
     res.end();
     return;
   }
@@ -53299,11 +53311,18 @@ async function syncStockbook(req, res, progressInterval = 50) {
       return map2;
     }, /* @__PURE__ */ new Map()).values()
   );
+  const toUpsert = sinceMs > 0 ? deduped.filter((r) => r.fmModifiedMs === 0 || r.fmModifiedMs > sinceMs) : deduped;
+  if (toUpsert.length === 0) {
+    logger.info({ fetched: records.length, sinceMs }, "Stockbook sync: all records already up to date");
+    send({ type: "done", synced: 0, message: "Everything is up to date." });
+    res.end();
+    return;
+  }
   const now = /* @__PURE__ */ new Date();
   let saved = 0;
-  const total = deduped.length;
+  const total = toUpsert.length;
   try {
-    for (const r of deduped) {
+    for (const r of toUpsert) {
       await db.insert(stockbookTable).values({
         pcode: r.pcode,
         description: r.description || "",
@@ -53338,12 +53357,13 @@ async function syncStockbook(req, res, progressInterval = 50) {
   if (maxFmTimestamp) {
     try {
       await setSetting("stockbook_fm_since", maxFmTimestamp);
-      logger.info({ maxFmTimestamp }, "Stored latest Replit_ModifiedDate seen in this sync");
+      logger.info({ maxFmTimestamp }, "Stored stockbook_fm_since for next delta sync");
     } catch (e) {
       logger.warn({ e }, "Could not persist stockbook_fm_since");
     }
   }
-  send({ type: "done", synced: records.length, syncedAt: now.toISOString() });
+  logger.info({ fetched: records.length, updated: toUpsert.length }, "Stockbook sync complete");
+  send({ type: "done", synced: toUpsert.length, total: records.length, syncedAt: now.toISOString() });
   res.end();
 }
 router5.get("/debug-delta", requireAuth, async (req, res) => {
@@ -53366,8 +53386,13 @@ router5.post("/sync", requireAuth, async (req, res) => {
   await syncStockbook(req, res, 50);
 });
 router5.post("/sync/full", requireAuth, async (req, res) => {
-  logger.info("Sync: fetching all tracked records from FileMaker StockBook");
-  await syncStockbook(req, res, 1);
+  const since = await getSetting("stockbook_fm_since").catch(() => void 0);
+  if (since) {
+    logger.info({ since }, "Stockbook sync: using stored FM timestamp as delta cutoff");
+  } else {
+    logger.info("Stockbook sync: no prior FM timestamp \u2014 fetching all tracked records");
+  }
+  await syncStockbook(req, res, 1, since || void 0);
 });
 var stockbook_default = router5;
 

@@ -181,7 +181,10 @@ export default function StockbookPage() {
   };
 
   const items = data?.items ?? [];
-  const lastSyncedAt = data?.lastSyncedAt;
+  // Prefer the syncedAt from the most recent sync result (set immediately on
+  // the "done" SSE event) so the displayed date updates without waiting for a
+  // GET refetch, which Express may answer with 304 and stale cached data.
+  const lastSyncedAt = syncState.lastResult?.syncedAt ?? data?.lastSyncedAt;
 
   const syncProgress = (() => {
     if (!syncState.active) return null;

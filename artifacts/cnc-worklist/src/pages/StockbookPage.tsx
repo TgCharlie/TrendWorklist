@@ -24,6 +24,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface SyncState {
   active: boolean;
@@ -81,6 +88,91 @@ function ProgressBar({
 
 const API_BASE_STOCKBOOK = "/api/stockbook";
 
+type StockbookRow = NonNullable<ReturnType<typeof useListStockbook>["data"]>["items"][number];
+
+function fmtCurrency(val: number | null | undefined): string {
+  if (val == null) return "—";
+  return val.toLocaleString(undefined, { style: "currency", currency: "AUD", minimumFractionDigits: 2 });
+}
+
+function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">{label}</span>
+      <span className="text-sm text-zinc-800 break-words">{value ?? <span className="text-zinc-300 italic">—</span>}</span>
+    </div>
+  );
+}
+
+function StockItemModal({ item, onClose }: { item: StockbookRow | null; onClose: () => void }) {
+  const qtyColor =
+    !item ? "" :
+    item.qtyOnHand <= 0 ? "text-red-600 font-bold text-2xl" :
+    item.qtyOnHand < 5   ? "text-amber-600 font-bold text-2xl" :
+                           "text-zinc-800 font-bold text-2xl";
+
+  return (
+    <Dialog open={!!item} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="font-mono text-lg">{item?.pcode}</DialogTitle>
+          <DialogDescription className="text-zinc-600 text-sm leading-snug">
+            {item?.description || "No description"}
+          </DialogDescription>
+        </DialogHeader>
+
+        {item && (
+          <div className="space-y-4 pt-1">
+            {/* Qty hero */}
+            <div className="flex items-center gap-4 rounded-lg bg-zinc-50 border border-zinc-200 px-5 py-4">
+              <div className="flex-1">
+                <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-1">Qty on Hand</p>
+                <span className={qtyColor}>{item.qtyOnHand}</span>
+                {item.unit && <span className="ml-2 text-sm text-zinc-500">{item.unit}</span>}
+              </div>
+              <div className="flex-1 border-l border-zinc-200 pl-4">
+                <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-1">Cost</p>
+                <span className="text-zinc-800 font-semibold text-lg">{fmtCurrency(item.cost)}</span>
+              </div>
+              <div className="flex-1 border-l border-zinc-200 pl-4">
+                <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-1">Cost Sub</p>
+                <span className="text-zinc-800 font-semibold text-lg">{fmtCurrency(item.costSub)}</span>
+              </div>
+            </div>
+
+            {/* Details grid */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <DetailField label="Location" value={
+                item.location
+                  ? <Badge variant="outline" className="font-mono text-xs">{item.location}</Badge>
+                  : null
+              } />
+              <DetailField label="OTYPE" value={item.otype} />
+              <DetailField label="Project" value={item.project} />
+              <DetailField label="PID" value={
+                item.pid ? <span className="font-mono">{item.pid}</span> : null
+              } />
+              <DetailField label="Unit" value={item.unit} />
+              <DetailField label="Tag Stock Tracked" value={
+                item.tagStockTracked
+                  ? <span className="text-green-600 font-medium">Yes</span>
+                  : <span className="text-zinc-400">No</span>
+              } />
+            </div>
+
+            {/* Last synced */}
+            {item.lastSyncedAt && (
+              <p className="text-xs text-zinc-400 pt-1 border-t border-zinc-100">
+                Last synced: {new Date(item.lastSyncedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+              </p>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function StockbookPage() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -89,6 +181,7 @@ export default function StockbookPage() {
   const [page, setPage] = useState(0);
   const [syncState, setSyncState] = useState<SyncState>(idleSyncState);
   const [trackedOverrides, setTrackedOverrides] = useState<Record<string, boolean>>({});
+  const [selectedItem, setSelectedItem] = useState<StockbookRow | null>(null);
   const queryClient = useQueryClient();
   const PAGE_SIZE = 200;
 
@@ -284,6 +377,7 @@ export default function StockbookPage() {
   })();
 
   return (
+    <>
     <div className="flex flex-col" style={{ height: "calc(100vh - 48px)" }}>
 
       {/* ── Fixed header ─────────────────────────────────────────── */}
@@ -476,7 +570,11 @@ export default function StockbookPage() {
             </TableHeader>
             <TableBody>
               {pageItems.map((item) => (
-                <TableRow key={item.id} className="hover:bg-zinc-50/50">
+                <TableRow
+                  key={item.id}
+                  className="hover:bg-blue-50/60 cursor-pointer"
+                  onClick={() => setSelectedItem(item)}
+                >
                   <TableCell className="font-mono text-sm text-zinc-800 font-medium">
                     {item.pcode}
                   </TableCell>
@@ -519,7 +617,10 @@ export default function StockbookPage() {
                   <TableCell className="text-zinc-500 text-sm">
                     {item.otype ?? <span className="text-zinc-300">—</span>}
                   </TableCell>
-                  <TableCell className="text-center w-24 min-w-24">
+                  <TableCell
+                    className="text-center w-24 min-w-24"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <input
                       type="checkbox"
                       checked={trackedOverrides[item.pcode] ?? item.tagStockTracked}
@@ -551,5 +652,8 @@ export default function StockbookPage() {
       </div>
 
     </div>
+
+    <StockItemModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+    </>
   );
 }

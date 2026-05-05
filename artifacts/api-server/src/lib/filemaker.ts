@@ -402,6 +402,7 @@ export async function getAllStockbook(
         ) ?? "";
         const fmTs = sanitizeStr(r.fieldData["Replit_ModifiedDate"] as string | undefined);
         const fmModifiedMs = fmTs ? fmTextTimestampToMs(fmTs) : 0;
+        const rawTracked = r.fieldData["Tag_StockTracked"];
         results.push({
           pcode,
           description: item,
@@ -411,7 +412,7 @@ export async function getAllStockbook(
           otype: sanitizeStr(r.fieldData["OTYPE"] as string | undefined),
           project: sanitizeStr(r.fieldData["Project"] as string | undefined),
           pid: sanitizeStr(r.fieldData["PID"] as string | undefined),
-          tracked: true,
+          tracked: rawTracked === 1 || rawTracked === "1" || rawTracked === true,
           fmModifiedMs,
         });
         // Track the highest Replit_ModifiedDate so we can persist it after sync.

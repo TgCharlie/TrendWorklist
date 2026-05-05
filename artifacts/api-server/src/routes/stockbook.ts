@@ -147,7 +147,7 @@ async function syncStockbook(
           otype: r.otype,
           project: r.project,
           pid: r.pid,
-          tagStockTracked: true,
+          tagStockTracked: r.tracked,
           lastSyncedAt: now,
           updatedAt: now,
         })

@@ -234,8 +234,9 @@ export async function findCutlistById(cutlistId: string): Promise<Record<string,
 
 // Strip characters PostgreSQL rejects: null bytes and lone UTF-16 surrogates.
 // FileMaker sometimes returns strings with these from legacy data.
-function sanitizeStr(s: string | null | undefined): string | null {
+function sanitizeStr(s: unknown): string | null {
   if (s == null) return null;
+  if (typeof s !== "string") return null;
   const cleaned = s
     .replace(/\0/g, "")              // null bytes
     .replace(/[\uD800-\uDFFF]/g, "") // lone surrogates (invalid UTF-8 when encoded)

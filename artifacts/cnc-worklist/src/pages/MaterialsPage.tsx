@@ -134,6 +134,10 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
     <div
       style={{ position: "fixed", top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width, zIndex: 9999 }}
       className="bg-white border border-zinc-200 rounded-md shadow-lg overflow-hidden"
+      // Stop Radix UI's pointerdown listener on the Dialog overlay from
+      // firing — without this the overlay closes the dialog before the
+      // click on a list item can register.
+      onPointerDown={(e) => e.stopPropagation()}
     >
       {results.length === 0 ? (
         <div className="px-3 py-3 text-sm text-zinc-400 text-center">
@@ -145,9 +149,9 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
             <li key={item.pcode}>
               <button
                 type="button"
-                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => handleSelect(item)}
-                className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center justify-between gap-2"
+                className="w-full text-left px-3 py-2 cursor-pointer hover:bg-blue-100 active:bg-blue-200 transition-colors flex items-center justify-between gap-2"
               >
                 <div className="min-w-0">
                   <span className="block font-mono text-xs font-bold text-blue-600 truncate">{item.pcode}</span>

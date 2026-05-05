@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListStockbook,
@@ -77,12 +77,13 @@ export default function StockbookPage() {
   const [syncState, setSyncState] = useState<SyncState>(idleSyncState);
   const queryClient = useQueryClient();
 
-  const params = search.trim() ? { search: search.trim() } : undefined;
+  const trimmed = search.trim();
+  const params = useMemo(
+    () => (trimmed ? { search: trimmed } : undefined),
+    [trimmed]
+  );
   const { data, isLoading, isError, error } = useListStockbook(params, {
-    query: {
-      queryKey: getListStockbookQueryKey(params),
-      staleTime: 30_000,
-    },
+    query: { staleTime: 30_000 },
   });
 
   const handleSync = async () => {

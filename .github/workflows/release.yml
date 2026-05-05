@@ -14,6 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - os: windows-latest
+            platform: win
+            artifact_suffix: Windows
+
           - os: macos-latest
             platform: mac
             artifact_suffix: macOS
@@ -55,10 +59,22 @@ jobs:
         working-directory: cnc-worklist-electron
         run: npm install
 
+      - name: Rebuild native modules for Electron ABI
+        working-directory: cnc-worklist-electron
+        run: npx electron-builder install-app-deps
+
       - name: Build API bundle for Electron
         run: pnpm --filter @workspace/api-server run build:electron
 
-      - name: Build and publish Electron app
+      - name: Build and publish Electron app (Windows)
+        if: matrix.platform == 'win'
+        working-directory: cnc-worklist-electron
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release -- --win
+
+      - name: Build and publish Electron app (macOS)
+        if: matrix.platform == 'mac'
         working-directory: cnc-worklist-electron
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -67,4 +83,4 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run release -- --${{ matrix.platform }}
+        run: npm run release -- --mac

@@ -232,6 +232,17 @@ export async function findCutlistById(cutlistId: string): Promise<Record<string,
   });
 }
 
+// Strip characters PostgreSQL rejects: null bytes and lone UTF-16 surrogates.
+// FileMaker sometimes returns strings with these from legacy data.
+function sanitizeStr(s: string | null | undefined): string | null {
+  if (s == null) return null;
+  const cleaned = s
+    .replace(/\0/g, "")              // null bytes
+    .replace(/[\uD800-\uDFFF]/g, "") // lone surrogates (invalid UTF-8 when encoded)
+    .trim();
+  return cleaned || null;
+}
+
 // StockBook layout columns: PCODE, Item, QtyOnHand, Unit
 export async function getStockLevel(pcode: string): Promise<Record<string, unknown> | null> {
   return withToken(async (config, token) => {
@@ -258,6 +269,8 @@ export interface FMStockbookRecord {
 }
 
 // Fetch all records from the FileMaker StockBook layout in batches.
+// Uses POST /_find with a wildcard query so we get ALL records in the table
+// (not just the current found set, which can be a small subset).
 // onProgress(fetched, total) is called after each batch with running totals.
 export async function getAllStockbook(
   onProgress?: (fetched: number, total: number) => void,
@@ -270,22 +283,29 @@ export async function getAllStockbook(
     let knownTotal = 0;
     let nextProgressAt = 50;
 
+    // Use a wildcard find so FileMaker returns every record that has any PCODE
+    // value — this bypasses the layout's current found set which may be limited.
+    const query = [{ PCODE: "*" }];
+
     while (true) {
-      const { records, total } = await findRecordsPage(config, token, layout, undefined, batchSize, offset);
+      const { records, total } = await findRecordsPage(
+        config, token, layout, query, batchSize, offset,
+      );
       if (!records.length) break;
       if (!knownTotal && total) knownTotal = total;
       for (const r of records) {
-        const pcode = (r.fieldData["PCODE"] as string | undefined)?.trim();
+        const pcode = sanitizeStr(r.fieldData["PCODE"] as string | undefined);
         if (!pcode) continue;
-        const item = ((r.fieldData["Item"] as string | undefined) ?? (r.fieldData["Description"] as string | undefined) ?? "").trim();
-        const unit = ((r.fieldData["Unit"] as string | undefined) ?? "").trim();
-        const location = ((r.fieldData["Location"] as string | undefined) ?? "").trim();
+        const item = sanitizeStr(
+          (r.fieldData["Item"] as string | undefined) ??
+          (r.fieldData["Description"] as string | undefined),
+        ) ?? "";
         results.push({
           pcode,
           description: item,
           qtyOnHand: Number(r.fieldData["QtyOnHand"] ?? 0),
-          unit: unit || null,
-          location: location || null,
+          unit: sanitizeStr(r.fieldData["Unit"] as string | undefined),
+          location: sanitizeStr(r.fieldData["Location"] as string | undefined),
         });
       }
       if (onProgress) {

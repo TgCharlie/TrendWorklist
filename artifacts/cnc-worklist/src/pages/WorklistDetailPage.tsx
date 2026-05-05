@@ -343,8 +343,8 @@ export default function WorklistDetailPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-zinc-50">
-                <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">PCODE</th>
-                <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Description</th>
+                <th className="text-left px-4 py-2.5 text-zinc-500 font-medium w-20">PCODE</th>
+                <th className="text-left px-4 py-2.5 text-zinc-500 font-medium w-64">Description</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">Qty</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">L (mm)</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">W (mm)</th>

@@ -145,23 +145,23 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
       {/* Results rendered inline — no portal, so Radix Dialog won't treat
           clicks here as "outside" and close the dialog prematurely. */}
       {showResults && (
-        <div className="border border-zinc-200 rounded-md overflow-hidden bg-white shadow-sm">
+        <div className="border border-zinc-200 rounded-md overflow-x-hidden bg-white shadow-sm">
           {results.length === 0 ? (
             <div className="px-3 py-3 text-sm text-zinc-400 text-center">
               No Stockbook entries match — fill the form manually below.
             </div>
           ) : (
-            <ul className="max-h-52 overflow-y-auto divide-y divide-zinc-100">
+            <ul className="max-h-52 overflow-y-auto overflow-x-hidden divide-y divide-zinc-100">
               {results.map((item) => (
                 <li key={item.pcode}>
                   <button
                     type="button"
                     onClick={() => handleSelect(item)}
-                    className="w-full text-left px-3 py-2.5 cursor-pointer hover:bg-blue-50 active:bg-blue-100 transition-colors flex items-center justify-between gap-2"
+                    className="w-full text-left px-3 py-2.5 cursor-pointer hover:bg-blue-50 active:bg-blue-100 transition-colors flex items-start justify-between gap-2"
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <span className="block font-mono text-xs font-bold text-blue-600 truncate">{item.pcode}</span>
-                      <span className="block text-xs text-zinc-600 truncate">{item.description}</span>
+                      <span className="block text-xs text-zinc-600 whitespace-normal break-words">{item.description}</span>
                     </div>
                     {item.qtyOnHand != null && (
                       <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded border font-medium ${

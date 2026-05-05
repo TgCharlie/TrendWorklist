@@ -293,6 +293,14 @@ export default function StockbookPage() {
             className="pl-9"
           />
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setSearch("")}
+          disabled={!search}
+        >
+          Clear
+        </Button>
         {data && (
           <span className="text-sm text-zinc-500">
             {data.total} item{data.total !== 1 ? "s" : ""}

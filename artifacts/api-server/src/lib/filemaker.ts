@@ -283,9 +283,11 @@ export async function getAllStockbook(
     let knownTotal = 0;
     let nextProgressAt = 50;
 
-    // Use a wildcard find so FileMaker returns every record that has any PCODE
-    // value — this bypasses the layout's current found set which may be limited.
-    const query = [{ PCODE: "*" }];
+    // Use a find with TagStockedTracked = "1" so only actively stocked/tracked
+    // items are synced. Records with 0 or no value in that field are excluded.
+    // The PCODE wildcard ensures we still get all matching records regardless
+    // of found set, while TagStockedTracked filters to only the ones we want.
+    const query = [{ PCODE: "*", TagStockedTracked: "1" }];
 
     while (true) {
       const { records, total } = await findRecordsPage(

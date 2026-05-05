@@ -430,7 +430,7 @@ export default function StockbookPage() {
                   <TableCell className="font-mono text-sm text-zinc-800 font-medium">
                     {item.pcode}
                   </TableCell>
-                  <TableCell className="text-zinc-700 text-sm">
+                  <TableCell className="text-zinc-700 text-sm text-left">
                     {item.description || (
                       <span className="text-zinc-400 italic">—</span>
                     )}

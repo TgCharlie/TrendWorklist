@@ -287,12 +287,17 @@ export async function getAllStockbook(
     const results: FMStockbookRecord[] = [];
     let offset = 1;
     let knownTotal = 0;
-    let nextProgressAt = 50;
 
     // Find all records where Tag_StockTracked = "1" directly in FileMaker.
     // This returns the 18k+ tracked items rather than the 814-record found set
     // that PCODE: "*" resolves to (records with a non-empty PCODE only).
     const query = [{ Tag_StockTracked: "1" }];
+
+    // fetchedFromFM counts every record received from FileMaker across all
+    // batches (before the PCODE filter).  We use this for progress so the
+    // bar starts moving immediately on the first batch instead of waiting
+    // for 50 filtered results to accumulate.
+    let fetchedFromFM = 0;
 
     while (true) {
       const { records, total } = await findRecordsPage(
@@ -300,6 +305,7 @@ export async function getAllStockbook(
       );
       if (!records.length) break;
       if (!knownTotal && total) knownTotal = total;
+      fetchedFromFM += records.length;
       for (const r of records) {
         const pcode = sanitizeStr(r.fieldData["PCODE"] as string | undefined);
         if (!pcode) continue;
@@ -316,20 +322,12 @@ export async function getAllStockbook(
           tracked: true,
         });
       }
+      // Emit once per batch so the bar advances after every 1,000 FM records.
       if (onProgress) {
-        const totalForProgress = knownTotal || results.length;
-        while (results.length >= nextProgressAt || records.length < batchSize) {
-          onProgress(Math.min(results.length, nextProgressAt), totalForProgress);
-          if (results.length < nextProgressAt || records.length < batchSize) break;
-          nextProgressAt += 50;
-        }
+        onProgress(fetchedFromFM, knownTotal || fetchedFromFM);
       }
       if (records.length < batchSize) break;
       offset += batchSize;
-    }
-
-    if (onProgress && results.length > 0 && results.length < nextProgressAt) {
-      onProgress(results.length, knownTotal || results.length);
     }
 
     return results;

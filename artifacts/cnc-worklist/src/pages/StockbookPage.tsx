@@ -189,11 +189,14 @@ export default function StockbookPage() {
     if (syncState.phase === "fetch") {
       const total = syncState.fetchTotal;
       const fetched = syncState.fetched;
+      const hasTotal = total > 0;
       return {
-        label: `Fetching from FileMaker… ${fetched.toLocaleString()} / ${total.toLocaleString()} records`,
+        label: hasTotal
+          ? `Fetching from FileMaker… ${fetched.toLocaleString()} / ${total.toLocaleString()} records`
+          : `Fetching from FileMaker… ${fetched.toLocaleString()} records`,
         value: fetched,
-        max: total || fetched || 1,
-        indeterminate: true,
+        max: hasTotal ? total : (fetched || 1),
+        indeterminate: !hasTotal,
       };
     }
     return {

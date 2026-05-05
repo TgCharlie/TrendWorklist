@@ -24,9 +24,21 @@ async function ensureStockbookColumns(): Promise<void> {
   `);
 }
 
+async function ensureMaterialsColumnsReal(): Promise<void> {
+  // length/width/thickness were originally INTEGER but need to support
+  // decimal values (e.g. 0.7mm edge banding). Safely widen to REAL.
+  await pool.query(`
+    ALTER TABLE materials
+      ALTER COLUMN length TYPE REAL USING length::REAL,
+      ALTER COLUMN width  TYPE REAL USING width::REAL,
+      ALTER COLUMN thickness TYPE REAL USING thickness::REAL;
+  `);
+}
+
 export async function seedDatabase(): Promise<void> {
   await ensureSessionsTable();
   await ensureStockbookColumns();
+  await ensureMaterialsColumnsReal();
 
   const [{ count: userCount }] = await db
     .select({ count: count() })

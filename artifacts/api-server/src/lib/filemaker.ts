@@ -295,7 +295,7 @@ export async function getAllStockbook(
       for (const r of records) {
         const pcode = sanitizeStr(r.fieldData["PCODE"] as string | undefined);
         if (!pcode) continue;
-        const trackedValue = sanitizeStr(r.fieldData["TagStockedTracked"] as string | undefined);
+        const trackedValue = sanitizeStr(r.fieldData["Tag_StockTracked"] as string | undefined);
         if (trackedValue !== "1") continue;
         const item = sanitizeStr(
           (r.fieldData["Item"] as string | undefined) ??

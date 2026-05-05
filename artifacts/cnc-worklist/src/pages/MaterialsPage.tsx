@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/hooks/useApi";
 import { useGetMaterialStock, getGetMaterialStockQueryKey } from "@workspace/api-client-react";
@@ -73,18 +72,15 @@ const EMPTY_FORM = { pcode: "", displayName: "", length: "", width: "", thicknes
 function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StockbookItem[]>([]);
-  const [open, setOpen] = useState(false);
+  const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const inputWrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!query.trim()) {
       setResults([]);
-      setOpen(false);
+      setSearched(false);
       return;
     }
     debounceRef.current = setTimeout(async () => {
@@ -94,9 +90,10 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
           `/stockbook?search=${encodeURIComponent(query.trim())}`
         );
         setResults((data.items ?? []).slice(0, 20));
-        setOpen(true);
+        setSearched(true);
       } catch {
         setResults([]);
+        setSearched(true);
       } finally {
         setLoading(false);
       }
@@ -106,81 +103,19 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
     };
   }, [query]);
 
-  useEffect(() => {
-    if (open && inputWrapperRef.current) {
-      const r = inputWrapperRef.current.getBoundingClientRect();
-      setDropdownRect({ top: r.bottom + 4, left: r.left, width: r.width });
-    }
-  }, [open]);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   function handleSelect(item: StockbookItem) {
     onSelect(item);
     setQuery("");
     setResults([]);
-    setOpen(false);
+    setSearched(false);
   }
 
-  const dropdown = open && dropdownRect ? createPortal(
-    <div
-      style={{ position: "fixed", top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width, zIndex: 9999 }}
-      className="bg-white border border-zinc-200 rounded-md shadow-lg overflow-hidden"
-      // Stop Radix UI's pointerdown listener on the Dialog overlay from
-      // firing — without this the overlay closes the dialog before the
-      // click on a list item can register.
-      onPointerDown={(e) => e.stopPropagation()}
-    >
-      {results.length === 0 ? (
-        <div className="px-3 py-3 text-sm text-zinc-400 text-center">
-          No Stockbook entries match — fill the form manually below.
-        </div>
-      ) : (
-        <ul className="max-h-52 overflow-y-auto divide-y divide-zinc-100">
-          {results.map((item) => (
-            <li key={item.pcode}>
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => handleSelect(item)}
-                className="w-full text-left px-3 py-2 cursor-pointer hover:bg-blue-100 active:bg-blue-200 transition-colors flex items-center justify-between gap-2"
-              >
-                <div className="min-w-0">
-                  <span className="block font-mono text-xs font-bold text-blue-600 truncate">{item.pcode}</span>
-                  <span className="block text-xs text-zinc-600 truncate">{item.description}</span>
-                </div>
-                {item.qtyOnHand != null && (
-                  <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded border font-medium ${
-                    item.qtyOnHand <= 0
-                      ? "text-red-600 bg-red-50 border-red-200"
-                      : item.qtyOnHand < 5
-                        ? "text-amber-700 bg-amber-50 border-amber-200"
-                        : "text-green-700 bg-green-50 border-green-200"
-                  }`}>
-                    {item.qtyOnHand} {item.unit ?? ""}
-                  </span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>,
-    document.body
-  ) : null;
+  const showResults = searched && query.trim().length > 0;
 
   return (
-    <div ref={containerRef} className="space-y-1.5">
+    <div className="space-y-1.5">
       <Label className="text-zinc-700">Search Stockbook</Label>
-      <div ref={inputWrapperRef} className="relative">
+      <div className="relative">
         <svg
           className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none"
           fill="none"
@@ -192,7 +127,6 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => { if (query.trim()) setOpen(true); }}
           placeholder="Type a PCODE or description to search…"
           className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 pl-8"
         />
@@ -207,8 +141,48 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
           </svg>
         )}
       </div>
-      {dropdown}
-      {!open && !query && (
+
+      {/* Results rendered inline — no portal, so Radix Dialog won't treat
+          clicks here as "outside" and close the dialog prematurely. */}
+      {showResults && (
+        <div className="border border-zinc-200 rounded-md overflow-hidden bg-white shadow-sm">
+          {results.length === 0 ? (
+            <div className="px-3 py-3 text-sm text-zinc-400 text-center">
+              No Stockbook entries match — fill the form manually below.
+            </div>
+          ) : (
+            <ul className="max-h-52 overflow-y-auto divide-y divide-zinc-100">
+              {results.map((item) => (
+                <li key={item.pcode}>
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(item)}
+                    className="w-full text-left px-3 py-2.5 cursor-pointer hover:bg-blue-50 active:bg-blue-100 transition-colors flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0">
+                      <span className="block font-mono text-xs font-bold text-blue-600 truncate">{item.pcode}</span>
+                      <span className="block text-xs text-zinc-600 truncate">{item.description}</span>
+                    </div>
+                    {item.qtyOnHand != null && (
+                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded border font-medium ${
+                        item.qtyOnHand <= 0
+                          ? "text-red-600 bg-red-50 border-red-200"
+                          : item.qtyOnHand < 5
+                            ? "text-amber-700 bg-amber-50 border-amber-200"
+                            : "text-green-700 bg-green-50 border-green-200"
+                      }`}>
+                        {item.qtyOnHand} {item.unit ?? ""}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {!showResults && !loading && !query && (
         <p className="text-xs text-zinc-400">
           Search to import from Stockbook, or fill the fields below manually.
         </p>

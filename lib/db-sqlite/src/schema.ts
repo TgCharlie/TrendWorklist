@@ -136,6 +136,9 @@ export const stockbookTable = sqliteTable("stockbook", {
   qtyOnHand: real("qty_on_hand").notNull().default(0),
   unit: text("unit"),
   location: text("location"),
+  otype: text("otype"),
+  project: text("project"),
+  pid: text("pid"),
   lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
   updatedAt: integer("updated_at", { mode: "timestamp" })
     .notNull()

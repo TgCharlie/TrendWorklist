@@ -271,6 +271,9 @@ export interface FMStockbookRecord {
   qtyOnHand: number;
   unit: string | null;
   location: string | null;
+  otype: string | null;
+  project: string | null;
+  pid: string | null;
   tracked: boolean;
   /** Replit_ModifiedDate parsed to epoch ms (0 if field absent/unparseable). */
   fmModifiedMs: number;
@@ -405,6 +408,9 @@ export async function getAllStockbook(
           qtyOnHand: Number(r.fieldData["QtyOnHand"] ?? 0),
           unit: sanitizeStr(r.fieldData["Unit"] as string | undefined),
           location: sanitizeStr(r.fieldData["Location"] as string | undefined),
+          otype: sanitizeStr(r.fieldData["OTYPE"] as string | undefined),
+          project: sanitizeStr(r.fieldData["Project"] as string | undefined),
+          pid: sanitizeStr(r.fieldData["PID"] as string | undefined),
           tracked: true,
           fmModifiedMs,
         });

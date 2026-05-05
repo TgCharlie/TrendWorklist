@@ -15,6 +15,9 @@ export const stockbookTable = pgTable("stockbook", {
   qtyOnHand: real("qty_on_hand").notNull().default(0),
   unit: text("unit"),
   location: text("location"),
+  otype: text("otype"),
+  project: text("project"),
+  pid: text("pid"),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

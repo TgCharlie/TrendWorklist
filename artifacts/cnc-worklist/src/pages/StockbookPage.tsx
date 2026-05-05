@@ -349,6 +349,9 @@ export default function StockbookPage() {
                 </TableHead>
                 <TableHead className="w-20 font-semibold text-zinc-700">Unit</TableHead>
                 <TableHead className="w-32 font-semibold text-zinc-700">Location</TableHead>
+                <TableHead className="w-32 font-semibold text-zinc-700">Project</TableHead>
+                <TableHead className="w-24 font-semibold text-zinc-700">PID</TableHead>
+                <TableHead className="w-24 font-semibold text-zinc-700">OTYPE</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -386,6 +389,15 @@ export default function StockbookPage() {
                     ) : (
                       <span className="text-zinc-300">—</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-zinc-500 text-sm">
+                    {item.project ?? <span className="text-zinc-300">—</span>}
+                  </TableCell>
+                  <TableCell className="text-zinc-500 text-sm font-mono">
+                    {item.pid ?? <span className="text-zinc-300">—</span>}
+                  </TableCell>
+                  <TableCell className="text-zinc-500 text-sm">
+                    {item.otype ?? <span className="text-zinc-300">—</span>}
                   </TableCell>
                 </TableRow>
               ))}

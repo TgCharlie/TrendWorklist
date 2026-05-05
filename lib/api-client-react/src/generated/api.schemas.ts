@@ -359,6 +359,12 @@ export interface StockbookItem {
   /** @nullable */
   location?: string | null;
   /** @nullable */
+  otype?: string | null;
+  /** @nullable */
+  project?: string | null;
+  /** @nullable */
+  pid?: string | null;
+  /** @nullable */
   lastSyncedAt?: string | null;
   updatedAt: string;
 }

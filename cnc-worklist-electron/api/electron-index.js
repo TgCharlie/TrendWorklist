@@ -33832,7 +33832,10 @@ var GetMaterialStockResponse = objectType({
   description: stringType(),
   quantity: numberType(),
   unit: stringType().nullish(),
-  location: stringType().nullish()
+  location: stringType().nullish(),
+  otype: stringType().nullish(),
+  project: stringType().nullish(),
+  pid: stringType().nullish()
 });
 var ToggleFavouriteParams = objectType({
   id: coerce.number()
@@ -52742,6 +52745,9 @@ var stockbookTable = sqliteTable("stockbook", {
   qtyOnHand: real("qty_on_hand").notNull().default(0),
   unit: text("unit"),
   location: text("location"),
+  otype: text("otype"),
+  project: text("project"),
+  pid: text("pid"),
   lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => /* @__PURE__ */ new Date())
 });
@@ -53137,6 +53143,9 @@ async function getAllStockbook(onProgress) {
           qtyOnHand: Number(r.fieldData["QtyOnHand"] ?? 0),
           unit: sanitizeStr(r.fieldData["Unit"]),
           location: sanitizeStr(r.fieldData["Location"]),
+          otype: sanitizeStr(r.fieldData["OTYPE"]),
+          project: sanitizeStr(r.fieldData["Project"]),
+          pid: sanitizeStr(r.fieldData["PID"]),
           tracked: true,
           fmModifiedMs
         });
@@ -53331,6 +53340,9 @@ async function syncStockbook(req, res, progressInterval = 50) {
         qtyOnHand: Number.isFinite(r.qtyOnHand) ? r.qtyOnHand : 0,
         unit: r.unit,
         location: r.location,
+        otype: r.otype,
+        project: r.project,
+        pid: r.pid,
         lastSyncedAt: now,
         updatedAt: now
       }).onConflictDoUpdate({
@@ -53340,6 +53352,9 @@ async function syncStockbook(req, res, progressInterval = 50) {
           qtyOnHand: sql`excluded.qty_on_hand`,
           unit: sql`excluded.unit`,
           location: sql`excluded.location`,
+          otype: sql`excluded.otype`,
+          project: sql`excluded.project`,
+          pid: sql`excluded.pid`,
           lastSyncedAt: sql`excluded.last_synced_at`,
           updatedAt: sql`excluded.updated_at`
         }

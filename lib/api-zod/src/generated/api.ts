@@ -258,6 +258,9 @@ export const GetMaterialStockResponse = zod.object({
   quantity: zod.number(),
   unit: zod.string().nullish(),
   location: zod.string().nullish(),
+  otype: zod.string().nullish(),
+  project: zod.string().nullish(),
+  pid: zod.string().nullish(),
 });
 
 /**

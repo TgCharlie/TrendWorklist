@@ -350,6 +350,30 @@ export default function StockbookPage() {
               {data.total} item{data.total !== 1 ? "s" : ""}
             </span>
           )}
+
+          {totalPages > 1 && (
+            <div className="ml-auto flex items-center gap-2 text-sm text-zinc-500">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+              >
+                ← Prev
+              </Button>
+              <span className="tabular-nums">
+                {page + 1} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+              >
+                Next →
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -452,35 +476,6 @@ export default function StockbookPage() {
         )}
       </div>
 
-      {/* ── Pagination ────────────────────────────────────────────── */}
-      {totalPages > 1 && (
-        <div className="shrink-0 pt-3 flex items-center justify-between text-sm text-zinc-500">
-          <span>
-            Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, items.length)} of {items.length.toLocaleString()}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-            >
-              ← Prev
-            </Button>
-            <span className="tabular-nums">
-              {page + 1} / {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1}
-            >
-              Next →
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

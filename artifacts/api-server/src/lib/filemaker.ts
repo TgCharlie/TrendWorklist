@@ -353,20 +353,20 @@ export async function debugStockbookFind(
   });
 }
 
-// Fetch tracked records from the FileMaker StockBook layout in batches.
+// Fetch all tracked records from the FileMaker StockBook layout in batches.
 //
-// `since` — the raw FM text value of Replit_ModifiedDate stored after the last
-// sync.  When supplied and in a 24h format (no am/pm suffix), the FM-side
-// criterion `Replit_ModifiedDate > since` is added to reduce the fetch.
-// For 12h format (am/pm), FM text comparison is unreliable so we always fetch
-// all records; JS-side filtering in the caller handles the delta cheaply.
+// Always fetches every Tag_StockTracked=1 record — no timestamp criterion is
+// applied. A FM-side Replit_ModifiedDate criterion was tried but proved
+// unreliable: FileMaker returns error 401 ("no records match") when the
+// criterion finds nothing, which is indistinguishable from a genuine empty
+// result AND the Replit_ModifiedDate field does not reliably auto-update on
+// every record save, so changed records are silently missed.
 //
 // Every returned record carries `fmModifiedMs` (Replit_ModifiedDate parsed to
-// epoch ms) so the route can do a reliable JS-side comparison regardless of
-// what the FM fetch returned.
+// epoch ms) for informational logging. The highest seen value is returned as
+// `maxFmTimestamp` and stored by the caller for display purposes.
 export async function getAllStockbook(
   onProgress?: (fetched: number, total: number) => void,
-  since?: string,
 ): Promise<{ records: FMStockbookRecord[]; maxFmTimestamp: string | null }> {
   return withToken(async (config, token) => {
     const layout = "StockBook";
@@ -377,14 +377,7 @@ export async function getAllStockbook(
     let maxFmTimestamp: string | null = null;
     let maxFmMs = 0;
 
-    // Only push the FM-side timestamp criterion when the stored value is in a
-    // 24h format that FileMaker text comparison handles correctly.
-    // For 12h (am/pm) formats we skip it — JS-side filtering is the safety net.
-    const criterion: Record<string, string> = { Tag_StockTracked: "1" };
-    if (since && fmTimestampIsSortable(since)) {
-      criterion["Replit_ModifiedDate"] = `>${since}`;
-    }
-    const query = [criterion];
+    const query = [{ Tag_StockTracked: "1" }];
 
     // fetchedFromFM counts every record received from FileMaker across all
     // batches so the progress bar starts moving on the first batch.

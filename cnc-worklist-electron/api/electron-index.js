@@ -53077,9 +53077,6 @@ function fmTextTimestampToMs(s) {
   }
   return 0;
 }
-function fmTimestampIsSortable(s) {
-  return /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/.test(s) || /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}$/.test(s);
-}
 async function debugStockbookFind(criterion, limit = 1) {
   return withToken(async (config2, token) => {
     const layout = "StockBook";
@@ -53103,7 +53100,7 @@ async function debugStockbookFind(criterion, limit = 1) {
     };
   });
 }
-async function getAllStockbook(onProgress, since) {
+async function getAllStockbook(onProgress) {
   return withToken(async (config2, token) => {
     const layout = "StockBook";
     const batchSize = 1e3;
@@ -53112,11 +53109,7 @@ async function getAllStockbook(onProgress, since) {
     let knownTotal = 0;
     let maxFmTimestamp = null;
     let maxFmMs = 0;
-    const criterion = { Tag_StockTracked: "1" };
-    if (since && fmTimestampIsSortable(since)) {
-      criterion["Replit_ModifiedDate"] = `>${since}`;
-    }
-    const query = [criterion];
+    const query = [{ Tag_StockTracked: "1" }];
     let fetchedFromFM = 0;
     while (true) {
       const { records, total } = await findRecordsPage(
@@ -53271,7 +53264,7 @@ router5.get("/", requireAuth, async (req, res) => {
   );
   res.json({ items: rows, lastSyncedAt: lastSynced, total: rows.length });
 });
-async function syncStockbook(req, res, progressInterval = 50, since) {
+async function syncStockbook(req, res, progressInterval = 50) {
   req.socket?.setNoDelay?.(true);
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -53290,7 +53283,7 @@ async function syncStockbook(req, res, progressInterval = 50, since) {
       if (progressInterval <= 1 || fetched % progressInterval === 0 || fetched === total2) {
         send({ type: "progress", phase: "fetch", fetched, total: total2 });
       }
-    }, since);
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker sync failed";
     logger.error({ err }, `FileMaker stockbook sync failed: ${message}`);
@@ -53300,7 +53293,7 @@ async function syncStockbook(req, res, progressInterval = 50, since) {
   }
   const { records, maxFmTimestamp } = fmRecords;
   if (!records.length) {
-    send({ type: "done", synced: 0, message: since ? "Everything is up to date." : "No records returned from FileMaker StockBook." });
+    send({ type: "done", synced: 0, message: "No records returned from FileMaker StockBook." });
     res.end();
     return;
   }
@@ -53378,13 +53371,8 @@ router5.post("/sync", requireAuth, async (req, res) => {
   await syncStockbook(req, res, 50);
 });
 router5.post("/sync/full", requireAuth, async (req, res) => {
-  const since = await getSetting("stockbook_fm_since").catch(() => void 0);
-  if (since) {
-    logger.info({ since }, "Stockbook sync: using stored FM timestamp as delta cutoff");
-  } else {
-    logger.info("Stockbook sync: no prior FM timestamp \u2014 fetching all tracked records");
-  }
-  await syncStockbook(req, res, 1, since || void 0);
+  logger.info("Stockbook sync: fetching all tracked records from FileMaker");
+  await syncStockbook(req, res, 1);
 });
 var stockbook_default = router5;
 

@@ -37,7 +37,6 @@ async function syncStockbook(
   req: Parameters<typeof requireAuth>[0],
   res: Parameters<typeof requireAuth>[1],
   progressInterval = 50,
-  since?: string,
 ): Promise<void> {
   (req.socket as { setNoDelay?: (v: boolean) => void } | null)?.setNoDelay?.(true);
 
@@ -58,7 +57,7 @@ async function syncStockbook(
       if (progressInterval <= 1 || fetched % progressInterval === 0 || fetched === total) {
         send({ type: "progress", phase: "fetch", fetched, total });
       }
-    }, since);
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker sync failed";
     logger.error({ err }, `FileMaker stockbook sync failed: ${message}`);
@@ -70,9 +69,7 @@ async function syncStockbook(
   const { records, maxFmTimestamp } = fmRecords;
 
   if (!records.length) {
-    // FM returned nothing — either truly empty or the delta filtered everything.
-    // Report as "up to date" so the user knows the sync ran.
-    send({ type: "done", synced: 0, message: since ? "Everything is up to date." : "No records returned from FileMaker StockBook." });
+    send({ type: "done", synced: 0, message: "No records returned from FileMaker StockBook." });
     res.end();
     return;
   }
@@ -181,17 +178,8 @@ router.post("/sync", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/sync/full", requireAuth, async (req, res): Promise<void> => {
-  // Read the FM timestamp stored after the last sync and pass it as `since`.
-  // getAllStockbook uses it as a FM-side criterion only when it's in a 24h
-  // format (reliable text sort). Either way, the route also applies a JS-side
-  // filter so nothing is ever silently missed.
-  const since = await getSetting("stockbook_fm_since").catch(() => undefined);
-  if (since) {
-    logger.info({ since }, "Stockbook sync: using stored FM timestamp as delta cutoff");
-  } else {
-    logger.info("Stockbook sync: no prior FM timestamp — fetching all tracked records");
-  }
-  await syncStockbook(req, res, 1, since || undefined);
+  logger.info("Stockbook sync: fetching all tracked records from FileMaker");
+  await syncStockbook(req, res, 1);
 });
 
 export default router;

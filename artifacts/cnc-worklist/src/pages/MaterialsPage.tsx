@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/hooks/useApi";
 import { useGetMaterialStock, getGetMaterialStockQueryKey } from "@workspace/api-client-react";
@@ -74,7 +75,9 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
   const [results, setResults] = useState<StockbookItem[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputWrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -104,6 +107,13 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
   }, [query]);
 
   useEffect(() => {
+    if (open && inputWrapperRef.current) {
+      const r = inputWrapperRef.current.getBoundingClientRect();
+      setDropdownRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+  }, [open]);
+
+  useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -120,10 +130,53 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
     setOpen(false);
   }
 
+  const dropdown = open && dropdownRect ? createPortal(
+    <div
+      style={{ position: "fixed", top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width, zIndex: 9999 }}
+      className="bg-white border border-zinc-200 rounded-md shadow-lg overflow-hidden"
+    >
+      {results.length === 0 ? (
+        <div className="px-3 py-3 text-sm text-zinc-400 text-center">
+          No Stockbook entries match — fill the form manually below.
+        </div>
+      ) : (
+        <ul className="max-h-52 overflow-y-auto divide-y divide-zinc-100">
+          {results.map((item) => (
+            <li key={item.pcode}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleSelect(item)}
+                className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <span className="block font-mono text-xs font-bold text-blue-600 truncate">{item.pcode}</span>
+                  <span className="block text-xs text-zinc-600 truncate">{item.description}</span>
+                </div>
+                {item.qtyOnHand != null && (
+                  <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded border font-medium ${
+                    item.qtyOnHand <= 0
+                      ? "text-red-600 bg-red-50 border-red-200"
+                      : item.qtyOnHand < 5
+                        ? "text-amber-700 bg-amber-50 border-amber-200"
+                        : "text-green-700 bg-green-50 border-green-200"
+                  }`}>
+                    {item.qtyOnHand} {item.unit ?? ""}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>,
+    document.body
+  ) : null;
+
   return (
-    <div ref={containerRef} className="relative space-y-1.5">
+    <div ref={containerRef} className="space-y-1.5">
       <Label className="text-zinc-700">Search Stockbook</Label>
-      <div className="relative">
+      <div ref={inputWrapperRef} className="relative">
         <svg
           className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none"
           fill="none"
@@ -150,44 +203,7 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
           </svg>
         )}
       </div>
-      {open && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-zinc-200 rounded-md shadow-lg overflow-hidden">
-          {results.length === 0 ? (
-            <div className="px-3 py-3 text-sm text-zinc-400 text-center">
-              No Stockbook entries match — fill the form manually below.
-            </div>
-          ) : (
-            <ul className="max-h-52 overflow-y-auto divide-y divide-zinc-100">
-              {results.map((item) => (
-                <li key={item.pcode}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => handleSelect(item)}
-                    className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center justify-between gap-2"
-                  >
-                    <div className="min-w-0">
-                      <span className="block font-mono text-xs font-bold text-blue-600 truncate">{item.pcode}</span>
-                      <span className="block text-xs text-zinc-600 truncate">{item.description}</span>
-                    </div>
-                    {item.qtyOnHand != null && (
-                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded border font-medium ${
-                        item.qtyOnHand <= 0
-                          ? "text-red-600 bg-red-50 border-red-200"
-                          : item.qtyOnHand < 5
-                            ? "text-amber-700 bg-amber-50 border-amber-200"
-                            : "text-green-700 bg-green-50 border-green-200"
-                      }`}>
-                        {item.qtyOnHand} {item.unit ?? ""}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      {dropdown}
       {!open && !query && (
         <p className="text-xs text-zinc-400">
           Search to import from Stockbook, or fill the fields below manually.
@@ -422,11 +438,11 @@ export default function MaterialsPage() {
       <Dialog open={showCreate || !!editItem} onOpenChange={(open) => {
         if (!open) closeDialog();
       }}>
-        <DialogContent className="bg-white border-zinc-200 text-zinc-950 overflow-visible">
+        <DialogContent className="bg-white border-zinc-200 text-zinc-950">
           <DialogHeader>
             <DialogTitle>{editItem ? "Edit Material" : "Add Material"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2 overflow-visible">
+          <div className="space-y-4 py-2">
 
             {/* Stockbook picker — create mode only */}
             {!editItem && (

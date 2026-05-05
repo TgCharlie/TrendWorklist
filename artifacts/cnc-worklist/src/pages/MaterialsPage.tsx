@@ -135,7 +135,7 @@ function StockbookPicker({ onSelect }: { onSelect: (item: StockbookItem) => void
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => { if (results.length > 0) setOpen(true); }}
+          onFocus={() => { if (query.trim()) setOpen(true); }}
           placeholder="Type a PCODE or description to search…"
           className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 pl-8"
         />

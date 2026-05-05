@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 import {
   Select,
   SelectContent,
@@ -81,6 +82,7 @@ function ProgressBar({
 const API_BASE_STOCKBOOK = "/api/stockbook";
 
 export default function StockbookPage() {
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [otype, setOtype] = useState("");
   const [otypes, setOtypes] = useState<string[]>([]);
@@ -104,12 +106,17 @@ export default function StockbookPage() {
             delete next[result.pcode];
             return next;
           });
+          toast({
+            title: "Stock tracking disabled",
+            description: `${result.pcode} — Tag_StockTracked set to 0 in FileMaker and removed from stockbook.`,
+          });
         } else {
           setTrackedOverrides((prev) => ({ ...prev, [result.pcode]: true }));
+          toast({ title: "Stock tracking enabled", description: `${result.pcode} — Tag_StockTracked set to 1 in FileMaker.` });
         }
         queryClient.invalidateQueries({ queryKey: getListStockbookQueryKey() });
       },
-      onError: (_err, variables) => {
+      onError: (err, variables) => {
         // Revert optimistic removal on failure
         setRemovedPcodes((prev) => {
           const next = new Set(prev);
@@ -120,6 +127,11 @@ export default function StockbookPage() {
           const next = { ...prev };
           delete next[variables.pcode];
           return next;
+        });
+        toast({
+          title: "FileMaker update failed",
+          description: (err as Error).message ?? "Could not update Tag_StockTracked in FileMaker.",
+          variant: "destructive",
         });
       },
     },

@@ -252,11 +252,14 @@ router.patch("/:pcode/tracked", requireAuth, async (req, res): Promise<void> => 
   }
 
   try {
+    logger.info({ pcode, tracked }, `Setting Tag_StockTracked=${tracked ? 1 : 0} in FileMaker for PCODE "${pcode}"`);
     const found = await setStockTracked(pcode, tracked);
     if (!found) {
+      logger.warn({ pcode }, `PCODE "${pcode}" not found in FileMaker StockBook — cannot update Tag_StockTracked`);
       res.status(404).json({ error: `PCODE "${pcode}" not found in FileMaker StockBook` });
       return;
     }
+    logger.info({ pcode, tracked }, `FileMaker Tag_StockTracked updated successfully for "${pcode}"`);
     if (tracked) {
       // Re-enabling tracking: update the flag in the local DB.
       await db
@@ -270,7 +273,7 @@ router.patch("/:pcode/tracked", requireAuth, async (req, res): Promise<void> => 
     res.json({ pcode, tracked });
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker update failed";
-    logger.error({ err, pcode }, `Failed to update Tag_StockTracked for ${pcode}`);
+    logger.error({ err, pcode }, `Failed to update Tag_StockTracked for ${pcode}: ${message}`);
     res.status(502).json({ error: message });
   }
 });

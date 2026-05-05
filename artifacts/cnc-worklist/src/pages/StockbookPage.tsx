@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useListStockbook,
   getListStockbookQueryKey,
+  useUpdateStockTracked,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,8 +86,26 @@ export default function StockbookPage() {
   const [otypes, setOtypes] = useState<string[]>([]);
   const [page, setPage] = useState(0);
   const [syncState, setSyncState] = useState<SyncState>(idleSyncState);
+  const [trackedOverrides, setTrackedOverrides] = useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
   const PAGE_SIZE = 200;
+
+  const updateTrackedMutation = useUpdateStockTracked({
+    mutation: {
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ queryKey: getListStockbookQueryKey() });
+        setTrackedOverrides((prev) => ({ ...prev, [result.pcode]: result.tracked }));
+      },
+      onError: (_err, variables) => {
+        // Revert optimistic update on failure
+        setTrackedOverrides((prev) => {
+          const next = { ...prev };
+          delete next[variables.pcode];
+          return next;
+        });
+      },
+    },
+  });
 
   useEffect(() => {
     fetch(`${API_BASE_STOCKBOOK}/otypes`, { credentials: "include" })
@@ -422,6 +441,7 @@ export default function StockbookPage() {
                 <TableHead className="w-32 font-semibold text-zinc-700">Project</TableHead>
                 <TableHead className="w-24 font-semibold text-zinc-700">PID</TableHead>
                 <TableHead className="w-24 font-semibold text-zinc-700">OTYPE</TableHead>
+                <TableHead className="w-24 min-w-24 font-semibold text-zinc-700 text-center whitespace-nowrap" title="Tag_StockTracked — uncheck to disable tracking in FileMaker">TagTracked</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -468,6 +488,30 @@ export default function StockbookPage() {
                   </TableCell>
                   <TableCell className="text-zinc-500 text-sm">
                     {item.otype ?? <span className="text-zinc-300">—</span>}
+                  </TableCell>
+                  <TableCell className="text-center w-24 min-w-24">
+                    <input
+                      type="checkbox"
+                      checked={trackedOverrides[item.pcode] ?? item.tagStockTracked}
+                      disabled={
+                        updateTrackedMutation.isPending &&
+                        updateTrackedMutation.variables?.pcode === item.pcode
+                      }
+                      title={
+                        (trackedOverrides[item.pcode] ?? item.tagStockTracked)
+                          ? "Stock tracked in FileMaker — click to disable"
+                          : "Stock tracking disabled — click to enable"
+                      }
+                      onChange={(e) => {
+                        const newTracked = e.target.checked;
+                        setTrackedOverrides((prev) => ({ ...prev, [item.pcode]: newTracked }));
+                        updateTrackedMutation.mutate({
+                          pcode: item.pcode,
+                          data: { tracked: newTracked },
+                        });
+                      }}
+                      className="w-4 h-4 accent-blue-600 cursor-pointer disabled:cursor-wait"
+                    />
                   </TableCell>
                 </TableRow>
               ))}

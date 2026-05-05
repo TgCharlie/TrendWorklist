@@ -3,6 +3,7 @@ import {
   serial,
   text,
   real,
+  boolean,
   timestamp,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -18,6 +19,7 @@ export const stockbookTable = pgTable("stockbook", {
   otype: text("otype"),
   project: text("project"),
   pid: text("pid"),
+  tagStockTracked: boolean("tag_stock_tracked").notNull().default(true),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

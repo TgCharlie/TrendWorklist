@@ -199,6 +199,7 @@ export const ListStockbookResponse = zod.object({
       otype: zod.string().nullish(),
       project: zod.string().nullish(),
       pid: zod.string().nullish(),
+      tagStockTracked: zod.boolean(),
       lastSyncedAt: zod.coerce.date().nullish(),
       updatedAt: zod.coerce.date().optional(),
     }),

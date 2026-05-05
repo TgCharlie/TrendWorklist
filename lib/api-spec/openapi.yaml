@@ -979,6 +979,8 @@ components:
           type: ["string", "null"]
         pid:
           type: ["string", "null"]
+        tagStockTracked:
+          type: boolean
         lastSyncedAt:
           type: ["string", "null"]
           format: date-time
@@ -990,6 +992,7 @@ components:
         - pcode
         - description
         - qtyOnHand
+        - tagStockTracked
 
     StockbookList:
       type: object

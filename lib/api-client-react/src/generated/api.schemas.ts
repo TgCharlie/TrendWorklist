@@ -141,6 +141,7 @@ export interface StockbookItem {
   project?: string | null;
   /** @nullable */
   pid?: string | null;
+  tagStockTracked: boolean;
   /** @nullable */
   lastSyncedAt?: string | null;
   updatedAt?: string;

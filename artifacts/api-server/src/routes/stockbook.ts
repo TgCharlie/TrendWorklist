@@ -147,6 +147,7 @@ async function syncStockbook(
           otype: r.otype,
           project: r.project,
           pid: r.pid,
+          tagStockTracked: true,
           lastSyncedAt: now,
           updatedAt: now,
         })
@@ -160,6 +161,7 @@ async function syncStockbook(
             otype: sql`excluded.otype`,
             project: sql`excluded.project`,
             pid: sql`excluded.pid`,
+            tagStockTracked: sql`excluded.tag_stock_tracked`,
             lastSyncedAt: sql`excluded.last_synced_at`,
             updatedAt: sql`excluded.updated_at`,
           },
@@ -237,6 +239,11 @@ router.patch("/:pcode/tracked", requireAuth, async (req, res): Promise<void> => 
       res.status(404).json({ error: `PCODE "${pcode}" not found in FileMaker StockBook` });
       return;
     }
+    // Mirror the change in the local DB so the UI reflects it immediately.
+    await db
+      .update(stockbookTable)
+      .set({ tagStockTracked: tracked, updatedAt: new Date() })
+      .where(eq(stockbookTable.pcode, pcode));
     res.json({ pcode, tracked });
   } catch (err) {
     const message = err instanceof Error ? err.message : "FileMaker update failed";

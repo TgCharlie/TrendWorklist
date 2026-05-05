@@ -180,6 +180,24 @@ async function syncStockbook(
     return;
   }
 
+  // Mark any local record NOT in the FileMaker result set as untracked.
+  // This handles the case where Tag_StockTracked was set to 0 directly in
+  // FileMaker — those records won't appear in the sync fetch, so we clear
+  // their local flag to keep the UI in sync with FileMaker's true state.
+  try {
+    const syncedPcodes = deduped.map((r) => r.pcode);
+    if (syncedPcodes.length > 0) {
+      await db.execute(sql`
+        UPDATE stockbook
+        SET tag_stock_tracked = false, updated_at = NOW()
+        WHERE tag_stock_tracked = true
+          AND pcode != ALL(${syncedPcodes})
+      `);
+    }
+  } catch (e) {
+    logger.warn({ e }, "Could not clear untracked stockbook records after sync");
+  }
+
   // Persist the highest Replit_ModifiedDate seen so the next sync can use it
   // as the JS-side epoch cutoff for delta filtering.
   if (maxFmTimestamp) {

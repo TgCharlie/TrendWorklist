@@ -432,6 +432,34 @@ export async function getAllStockbook(
   });
 }
 
+// Update Tag_StockTracked for a given PCODE in the FileMaker StockBook layout.
+// Returns true when the record was found and updated, false when the PCODE doesn't exist.
+export async function setStockTracked(pcode: string, tracked: boolean): Promise<boolean> {
+  return withToken(async (config, token) => {
+    const layout = "StockBook";
+    // Find the record first to get its FileMaker internal recordId.
+    const records = await findRecords(config, token, layout, [{ PCODE: pcode }], 1);
+    if (!records.length) return false;
+    const recordId = records[0].recordId;
+
+    const url = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/layouts/${encodeURIComponent(layout)}/records/${recordId}`;
+    const res = await sslFetch(config.allowSelfSigned, url, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fieldData: { Tag_StockTracked: tracked ? 1 : 0 } }),
+    });
+
+    if (!res.ok) {
+      const data = (await res.json()) as FileMakerResponse;
+      throw new Error(`FileMaker update failed: ${data.messages[0]?.message ?? res.status}`);
+    }
+    return true;
+  });
+}
+
 let projectsCache: { data: Array<Record<string, unknown>>; ts: number } | null = null;
 
 export async function findProjectsCached(search?: string): Promise<Array<Record<string, unknown>>> {

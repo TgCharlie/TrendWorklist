@@ -101,13 +101,17 @@ export const ListProjectsQueryParams = zod.object({
   search: zod.coerce.string().optional(),
 });
 
-export const ListProjectsResponseItem = zod.object({
-  projectId: zod.string(),
-  projectNumber: zod.string(),
-  address: zod.string(),
-  date: zod.string().nullish(),
-  status: zod.string().nullish(),
-});
+export const ListProjectsResponseItem = zod
+  .object({
+    id: zod.string().describe("FileMaker ProjectID value"),
+    recordId: zod.string().optional().describe("FileMaker internal record ID"),
+    address: zod.string().nullish(),
+    clientName: zod.string().nullish(),
+    status: zod.string().nullish(),
+  })
+  .describe(
+    "Project record from FileMaker (may include additional FileMaker field data)",
+  );
 export const ListProjectsResponse = zod.array(ListProjectsResponseItem);
 
 /**
@@ -117,29 +121,36 @@ export const GetProjectParams = zod.object({
   projectId: zod.coerce.string(),
 });
 
-export const GetProjectResponse = zod.object({
-  projectId: zod.string(),
-  projectNumber: zod.string(),
-  address: zod.string(),
-  date: zod.string().nullish(),
-  status: zod.string().nullish(),
-});
+export const GetProjectResponse = zod
+  .object({
+    id: zod.string().describe("FileMaker ProjectID value"),
+    recordId: zod.string().optional().describe("FileMaker internal record ID"),
+    address: zod.string().nullish(),
+    clientName: zod.string().nullish(),
+    status: zod.string().nullish(),
+  })
+  .describe(
+    "Project record from FileMaker (may include additional FileMaker field data)",
+  );
 
 /**
- * @summary List cutlists from FileMaker
+ * @summary List cutlists from FileMaker for a given project
  */
 export const ListCutlistsQueryParams = zod.object({
-  projectId: zod.coerce.string().optional(),
+  projectId: zod.coerce.string(),
 });
 
-export const ListCutlistsResponseItem = zod.object({
-  cutlistId: zod.string(),
-  pid: zod.string(),
-  item: zod.string(),
-  lister: zod.string().nullish(),
-  dateListed: zod.string().nullish(),
-  projectId: zod.string(),
-});
+export const ListCutlistsResponseItem = zod
+  .object({
+    id: zod.string().describe("FileMaker CutlistID value"),
+    recordId: zod.string().optional().describe("FileMaker internal record ID"),
+    projectId: zod.string().nullish(),
+    description: zod.string().nullish(),
+    status: zod.string().nullish(),
+  })
+  .describe(
+    "Cutlist record from FileMaker (may include additional FileMaker field data)",
+  );
 export const ListCutlistsResponse = zod.array(ListCutlistsResponseItem);
 
 /**
@@ -149,13 +160,67 @@ export const GetCutlistParams = zod.object({
   cutlistId: zod.coerce.string(),
 });
 
-export const GetCutlistResponse = zod.object({
-  cutlistId: zod.string(),
-  pid: zod.string(),
-  item: zod.string(),
-  lister: zod.string().nullish(),
-  dateListed: zod.string().nullish(),
-  projectId: zod.string(),
+export const GetCutlistResponse = zod
+  .object({
+    id: zod.string().describe("FileMaker CutlistID value"),
+    recordId: zod.string().optional().describe("FileMaker internal record ID"),
+    projectId: zod.string().nullish(),
+    description: zod.string().nullish(),
+    status: zod.string().nullish(),
+  })
+  .describe(
+    "Cutlist record from FileMaker (may include additional FileMaker field data)",
+  );
+
+/**
+ * @summary List distinct OTYPE values in the local stockbook
+ */
+export const ListStockbookOtypesResponse = zod.object({
+  otypes: zod.array(zod.string()),
+});
+
+/**
+ * @summary List stockbook items from local database
+ */
+export const ListStockbookQueryParams = zod.object({
+  search: zod.coerce.string().optional(),
+  otype: zod.coerce.string().optional(),
+});
+
+export const ListStockbookResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      pcode: zod.string(),
+      description: zod.string(),
+      qtyOnHand: zod.number(),
+      unit: zod.string().nullish(),
+      location: zod.string().nullish(),
+      otype: zod.string().nullish(),
+      project: zod.string().nullish(),
+      pid: zod.string().nullish(),
+      lastSyncedAt: zod.coerce.date().nullish(),
+      updatedAt: zod.coerce.date().optional(),
+    }),
+  ),
+  lastSyncedAt: zod.coerce.date().nullish(),
+  total: zod.number(),
+});
+
+/**
+ * @summary Update Tag_StockTracked flag in FileMaker StockBook for a PCODE
+ */
+export const UpdateStockTrackedParams = zod.object({
+  pcode: zod.coerce.string(),
+});
+
+export const UpdateStockTrackedBody = zod.object({
+  tracked: zod.boolean(),
+});
+
+export const UpdateStockTrackedResponse = zod.object({
+  pcode: zod.string(),
+  tracked: zod.boolean(),
 });
 
 /**
@@ -165,13 +230,16 @@ export const GetStockLevelParams = zod.object({
   pcode: zod.coerce.string(),
 });
 
-export const GetStockLevelResponse = zod.object({
-  pcode: zod.string(),
-  description: zod.string(),
-  quantity: zod.number(),
-  unit: zod.string().nullish(),
-  location: zod.string().nullish(),
-});
+export const GetStockLevelResponse = zod
+  .object({
+    pcode: zod.string(),
+    description: zod.string(),
+    qtyOnHand: zod.number().nullish(),
+    unit: zod.string().nullish(),
+  })
+  .describe(
+    "Stock level record from FileMaker StockBook (may include additional field data)",
+  );
 
 /**
  * @summary List internal materials
@@ -186,7 +254,7 @@ export const ListMaterialsResponseItem = zod.object({
   pcode: zod.string(),
   displayName: zod.string(),
   notes: zod.string().nullish(),
-  isFavourite: zod.boolean(),
+  isFavourite: zod.boolean().optional(),
   createdAt: zod.coerce.date(),
 });
 export const ListMaterialsResponse = zod.array(ListMaterialsResponseItem);
@@ -212,7 +280,7 @@ export const GetMaterialResponse = zod.object({
   pcode: zod.string(),
   displayName: zod.string(),
   notes: zod.string().nullish(),
-  isFavourite: zod.boolean(),
+  isFavourite: zod.boolean().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -234,7 +302,7 @@ export const UpdateMaterialResponse = zod.object({
   pcode: zod.string(),
   displayName: zod.string(),
   notes: zod.string().nullish(),
-  isFavourite: zod.boolean(),
+  isFavourite: zod.boolean().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -246,25 +314,7 @@ export const DeleteMaterialParams = zod.object({
 });
 
 /**
- * @summary Get live stock level for a material via its PCODE
- */
-export const GetMaterialStockParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const GetMaterialStockResponse = zod.object({
-  pcode: zod.string(),
-  description: zod.string(),
-  quantity: zod.number(),
-  unit: zod.string().nullish(),
-  location: zod.string().nullish(),
-  otype: zod.string().nullish(),
-  project: zod.string().nullish(),
-  pid: zod.string().nullish(),
-});
-
-/**
- * @summary Toggle favourite status for a material (per user)
+ * @summary Toggle favourite status for a material
  */
 export const ToggleFavouriteParams = zod.object({
   id: zod.coerce.number(),
@@ -276,36 +326,55 @@ export const ToggleFavouriteResponse = zod.object({
 });
 
 /**
+ * @summary Get live stock level for a material via its PCODE
+ */
+export const GetMaterialStockParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetMaterialStockResponse = zod
+  .object({
+    pcode: zod.string(),
+    description: zod.string(),
+    qtyOnHand: zod.number().nullish(),
+    unit: zod.string().nullish(),
+  })
+  .describe(
+    "Stock level record from FileMaker StockBook (may include additional field data)",
+  );
+
+/**
  * @summary List all worklists
  */
 export const ListWorklistsQueryParams = zod.object({
-  status: zod.enum(["draft", "active", "complete"]).optional(),
+  status: zod.enum(["draft", "submitted", "completed"]).optional(),
 });
 
-export const ListWorklistsResponseItem = zod.object({
-  id: zod.number(),
-  worklistNumber: zod.string(),
-  projectId: zod.string(),
-  projectNumber: zod.string(),
-  projectAddress: zod.string(),
-  machineType: zod.enum(["B", "C"]),
-  folderNumber: zod.number(),
-  folderRef: zod.string(),
-  status: zod.enum(["draft", "active", "complete"]),
-  itemCount: zod.number(),
-  createdAt: zod.coerce.date(),
-  createdByUsername: zod.string().nullish(),
-});
+export const ListWorklistsResponseItem = zod
+  .object({
+    id: zod.number(),
+    worklistNumber: zod.string(),
+    projectId: zod.string().nullish(),
+    projectAddress: zod.string().nullish(),
+    machineType: zod.enum(["B", "C"]),
+    folderNumber: zod.number(),
+    status: zod.enum(["draft", "submitted", "completed"]),
+    createdBy: zod
+      .number()
+      .nullish()
+      .describe("ID of the user who created the worklist"),
+    createdAt: zod.coerce.date(),
+  })
+  .describe("Summary view of a worklist (returned by list endpoint)");
 export const ListWorklistsResponse = zod.array(ListWorklistsResponseItem);
 
 /**
  * @summary Create a new worklist
  */
 export const CreateWorklistBody = zod.object({
-  projectId: zod.string(),
-  projectNumber: zod.string(),
-  projectAddress: zod.string(),
-  cutlistRefs: zod.array(zod.string()),
+  projectId: zod.string().optional(),
+  projectAddress: zod.string().optional(),
+  cutlistRefs: zod.array(zod.string()).optional(),
   machineType: zod.enum(["B", "C"]),
 });
 
@@ -313,11 +382,8 @@ export const CreateWorklistBody = zod.object({
  * @summary Get worklist summary stats
  */
 export const GetWorklistStatsResponse = zod.object({
-  totalWorklists: zod.number(),
-  draftCount: zod.number(),
-  activeCount: zod.number(),
-  completeCount: zod.number(),
-  totalItemsThisMonth: zod.number(),
+  total: zod.number(),
+  byStatus: zod.record(zod.string(), zod.number()),
   nextWorklistNumber: zod.string(),
 });
 
@@ -328,34 +394,36 @@ export const GetWorklistParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const GetWorklistResponse = zod.object({
-  id: zod.number(),
-  worklistNumber: zod.string(),
-  projectId: zod.string(),
-  projectNumber: zod.string(),
-  projectAddress: zod.string(),
-  cutlistRefs: zod.array(zod.string()),
-  machineType: zod.enum(["B", "C"]),
-  folderNumber: zod.number(),
-  folderRef: zod.string(),
-  status: zod.enum(["draft", "active", "complete"]),
-  createdAt: zod.coerce.date(),
-  createdByUsername: zod.string().nullish(),
-  items: zod.array(
-    zod.object({
-      id: zod.number(),
-      worklistId: zod.number(),
-      materialId: zod.number().nullish(),
-      pcode: zod.string(),
-      displayName: zod.string(),
-      quantity: zod.number(),
-      length: zod.number().nullish(),
-      width: zod.number().nullish(),
-      notes: zod.string().nullish(),
-      sortOrder: zod.number(),
-    }),
-  ),
-});
+export const GetWorklistResponse = zod
+  .object({
+    id: zod.number(),
+    worklistNumber: zod.string(),
+    projectId: zod.string().nullish(),
+    projectAddress: zod.string().nullish(),
+    cutlistRefs: zod.array(zod.string()).optional(),
+    machineType: zod.enum(["B", "C"]),
+    folderNumber: zod.number(),
+    status: zod.enum(["draft", "submitted", "completed"]),
+    createdBy: zod
+      .number()
+      .nullish()
+      .describe("ID of the user who created the worklist"),
+    createdAt: zod.coerce.date(),
+    items: zod.array(
+      zod.object({
+        id: zod.number(),
+        worklistId: zod.number(),
+        materialId: zod.number().nullish(),
+        pcode: zod.string(),
+        displayName: zod.string(),
+        quantity: zod.number(),
+        length: zod.number().nullish(),
+        width: zod.number().nullish(),
+        notes: zod.string().nullish(),
+      }),
+    ),
+  })
+  .describe("Full worklist with items (returned by GET \/worklists\/:id)");
 
 /**
  * @summary Update a worklist
@@ -365,38 +433,40 @@ export const UpdateWorklistParams = zod.object({
 });
 
 export const UpdateWorklistBody = zod.object({
-  status: zod.enum(["draft", "active", "complete"]).optional(),
+  status: zod.enum(["draft", "submitted", "completed"]).optional(),
   cutlistRefs: zod.array(zod.string()).optional(),
 });
 
-export const UpdateWorklistResponse = zod.object({
-  id: zod.number(),
-  worklistNumber: zod.string(),
-  projectId: zod.string(),
-  projectNumber: zod.string(),
-  projectAddress: zod.string(),
-  cutlistRefs: zod.array(zod.string()),
-  machineType: zod.enum(["B", "C"]),
-  folderNumber: zod.number(),
-  folderRef: zod.string(),
-  status: zod.enum(["draft", "active", "complete"]),
-  createdAt: zod.coerce.date(),
-  createdByUsername: zod.string().nullish(),
-  items: zod.array(
-    zod.object({
-      id: zod.number(),
-      worklistId: zod.number(),
-      materialId: zod.number().nullish(),
-      pcode: zod.string(),
-      displayName: zod.string(),
-      quantity: zod.number(),
-      length: zod.number().nullish(),
-      width: zod.number().nullish(),
-      notes: zod.string().nullish(),
-      sortOrder: zod.number(),
-    }),
-  ),
-});
+export const UpdateWorklistResponse = zod
+  .object({
+    id: zod.number(),
+    worklistNumber: zod.string(),
+    projectId: zod.string().nullish(),
+    projectAddress: zod.string().nullish(),
+    cutlistRefs: zod.array(zod.string()).optional(),
+    machineType: zod.enum(["B", "C"]),
+    folderNumber: zod.number(),
+    status: zod.enum(["draft", "submitted", "completed"]),
+    createdBy: zod
+      .number()
+      .nullish()
+      .describe("ID of the user who created the worklist"),
+    createdAt: zod.coerce.date(),
+    items: zod.array(
+      zod.object({
+        id: zod.number(),
+        worklistId: zod.number(),
+        materialId: zod.number().nullish(),
+        pcode: zod.string(),
+        displayName: zod.string(),
+        quantity: zod.number(),
+        length: zod.number().nullish(),
+        width: zod.number().nullish(),
+        notes: zod.string().nullish(),
+      }),
+    ),
+  })
+  .describe("Full worklist with items (returned by GET \/worklists\/:id)");
 
 /**
  * @summary Delete a worklist
@@ -431,11 +501,12 @@ export const UpdateWorklistItemParams = zod.object({
 });
 
 export const UpdateWorklistItemBody = zod.object({
+  pcode: zod.string().optional(),
+  displayName: zod.string().optional(),
   quantity: zod.number().optional(),
   length: zod.number().nullish(),
   width: zod.number().nullish(),
   notes: zod.string().nullish(),
-  sortOrder: zod.number().optional(),
 });
 
 export const UpdateWorklistItemResponse = zod.object({
@@ -448,7 +519,6 @@ export const UpdateWorklistItemResponse = zod.object({
   length: zod.number().nullish(),
   width: zod.number().nullish(),
   notes: zod.string().nullish(),
-  sortOrder: zod.number(),
 });
 
 /**
@@ -474,40 +544,46 @@ export const GetNextFolderQueryParams = zod.object({
 });
 
 export const GetNextFolderResponse = zod.object({
-  machine: zod.string(),
-  folderNumber: zod.number(),
-  folderRef: zod.string(),
+  machineType: zod.enum(["B", "C"]),
+  next: zod.number(),
+  formatted: zod.string(),
 });
 
 /**
  * @summary Get application settings (admin only)
  */
 export const GetSettingsResponse = zod.object({
-  filemakerServerUrl: zod.string(),
-  filemakerDatabase: zod.string(),
-  filemakerUsername: zod.string(),
-  csvServerPath: zod.string(),
-  worklistStartNumber: zod.number(),
-  nextWorklistNumber: zod.number(),
+  filemaker_server_url: zod.string(),
+  filemaker_database: zod.string(),
+  filemaker_username: zod.string(),
+  filemaker_password: zod.string().optional(),
+  csv_server_path: zod.string(),
+  worklist_start_number: zod.string(),
 });
 
 /**
  * @summary Update application settings (admin only)
  */
 export const UpdateSettingsBody = zod.object({
-  filemakerServerUrl: zod.string().optional(),
-  filemakerDatabase: zod.string().optional(),
-  filemakerUsername: zod.string().optional(),
-  filemakerPassword: zod.string().optional(),
-  csvServerPath: zod.string().optional(),
-  worklistStartNumber: zod.number().optional(),
+  filemaker_server_url: zod.string().optional(),
+  filemaker_database: zod.string().optional(),
+  filemaker_username: zod.string().optional(),
+  filemaker_password: zod.string().optional(),
+  csv_server_path: zod.string().optional(),
+  worklist_start_number: zod.number().optional(),
+  force_override: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true, resets the sequence counter even if worklists already exist",
+    ),
 });
 
 export const UpdateSettingsResponse = zod.object({
-  filemakerServerUrl: zod.string(),
-  filemakerDatabase: zod.string(),
-  filemakerUsername: zod.string(),
-  csvServerPath: zod.string(),
-  worklistStartNumber: zod.number(),
-  nextWorklistNumber: zod.number(),
+  filemaker_server_url: zod.string(),
+  filemaker_database: zod.string(),
+  filemaker_username: zod.string(),
+  filemaker_password: zod.string().optional(),
+  csv_server_path: zod.string(),
+  worklist_start_number: zod.string(),
 });

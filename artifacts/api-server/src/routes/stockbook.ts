@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
 import { and, or, ilike, eq, isNotNull, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
-import { getAllStockbook, debugStockbookFind, fmTextTimestampToMs } from "../lib/filemaker";
+import { getAllStockbook, debugStockbookFind, fmTextTimestampToMs, setStockTracked } from "../lib/filemaker";
 import { getSetting, setSetting } from "../lib/settings";
 import { logger } from "../lib/logger";
 
@@ -220,6 +220,29 @@ router.get("/debug-delta", requireAuth, async (req, res): Promise<void> => {
         : { error: String((tests[1] as PromiseRejectedResult).reason) },
     },
   });
+});
+
+router.patch("/:pcode/tracked", requireAuth, async (req, res): Promise<void> => {
+  const pcode = req.params.pcode;
+  const { tracked } = req.body as { tracked?: unknown };
+
+  if (typeof tracked !== "boolean") {
+    res.status(400).json({ error: "tracked must be a boolean" });
+    return;
+  }
+
+  try {
+    const found = await setStockTracked(pcode, tracked);
+    if (!found) {
+      res.status(404).json({ error: `PCODE "${pcode}" not found in FileMaker StockBook` });
+      return;
+    }
+    res.json({ pcode, tracked });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "FileMaker update failed";
+    logger.error({ err, pcode }, `Failed to update Tag_StockTracked for ${pcode}`);
+    res.status(502).json({ error: message });
+  }
 });
 
 router.post("/sync", requireAuth, async (req, res): Promise<void> => {

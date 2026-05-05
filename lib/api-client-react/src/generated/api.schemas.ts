@@ -79,35 +79,92 @@ export interface UpdateUserBody {
   active?: boolean;
 }
 
+/**
+ * Project record from FileMaker (may include additional FileMaker field data)
+ */
 export interface Project {
-  projectId: string;
-  projectNumber: string;
-  address: string;
+  /** FileMaker ProjectID value */
+  id: string;
+  /** FileMaker internal record ID */
+  recordId?: string;
   /** @nullable */
-  date?: string | null;
+  address?: string | null;
+  /** @nullable */
+  clientName?: string | null;
   /** @nullable */
   status?: string | null;
+  [key: string]: unknown;
 }
 
+/**
+ * Cutlist record from FileMaker (may include additional FileMaker field data)
+ */
 export interface Cutlist {
-  cutlistId: string;
-  pid: string;
-  item: string;
+  /** FileMaker CutlistID value */
+  id: string;
+  /** FileMaker internal record ID */
+  recordId?: string;
   /** @nullable */
-  lister?: string | null;
+  projectId?: string | null;
   /** @nullable */
-  dateListed?: string | null;
-  projectId: string;
+  description?: string | null;
+  /** @nullable */
+  status?: string | null;
+  [key: string]: unknown;
 }
 
+/**
+ * Stock level record from FileMaker StockBook (may include additional field data)
+ */
 export interface StockLevel {
   pcode: string;
   description: string;
-  quantity: number;
+  /** @nullable */
+  qtyOnHand?: number | null;
+  /** @nullable */
+  unit?: string | null;
+  [key: string]: unknown;
+}
+
+export interface StockbookItem {
+  id: number;
+  pcode: string;
+  description: string;
+  qtyOnHand: number;
   /** @nullable */
   unit?: string | null;
   /** @nullable */
   location?: string | null;
+  /** @nullable */
+  otype?: string | null;
+  /** @nullable */
+  project?: string | null;
+  /** @nullable */
+  pid?: string | null;
+  /** @nullable */
+  lastSyncedAt?: string | null;
+  updatedAt?: string;
+}
+
+export interface StockbookList {
+  items: StockbookItem[];
+  /** @nullable */
+  lastSyncedAt?: string | null;
+  total: number;
+}
+
+export interface UpdateStockTrackedBody {
+  tracked: boolean;
+}
+
+export interface StockTrackedResult {
+  pcode: string;
+  tracked: boolean;
+}
+
+export interface ToggleFavouriteResult {
+  isFavourite: boolean;
+  materialId: number;
 }
 
 export interface Material {
@@ -116,7 +173,7 @@ export interface Material {
   displayName: string;
   /** @nullable */
   notes?: string | null;
-  isFavourite: boolean;
+  isFavourite?: boolean;
   createdAt: string;
 }
 
@@ -134,11 +191,6 @@ export interface UpdateMaterialBody {
   notes?: string | null;
 }
 
-export interface FavouriteResponse {
-  isFavourite: boolean;
-  materialId: number;
-}
-
 export type WorklistSummaryMachineType =
   (typeof WorklistSummaryMachineType)[keyof typeof WorklistSummaryMachineType];
 
@@ -152,24 +204,29 @@ export type WorklistSummaryStatus =
 
 export const WorklistSummaryStatus = {
   draft: "draft",
-  active: "active",
-  complete: "complete",
+  submitted: "submitted",
+  completed: "completed",
 } as const;
 
+/**
+ * Summary view of a worklist (returned by list endpoint)
+ */
 export interface WorklistSummary {
   id: number;
   worklistNumber: string;
-  projectId: string;
-  projectNumber: string;
-  projectAddress: string;
+  /** @nullable */
+  projectId?: string | null;
+  /** @nullable */
+  projectAddress?: string | null;
   machineType: WorklistSummaryMachineType;
   folderNumber: number;
-  folderRef: string;
   status: WorklistSummaryStatus;
-  itemCount: number;
+  /**
+   * ID of the user who created the worklist
+   * @nullable
+   */
+  createdBy?: number | null;
   createdAt: string;
-  /** @nullable */
-  createdByUsername?: string | null;
 }
 
 export type WorklistMachineType =
@@ -185,8 +242,8 @@ export type WorklistStatus =
 
 export const WorklistStatus = {
   draft: "draft",
-  active: "active",
-  complete: "complete",
+  submitted: "submitted",
+  completed: "completed",
 } as const;
 
 export interface WorklistItem {
@@ -203,23 +260,28 @@ export interface WorklistItem {
   width?: number | null;
   /** @nullable */
   notes?: string | null;
-  sortOrder: number;
 }
 
+/**
+ * Full worklist with items (returned by GET /worklists/:id)
+ */
 export interface Worklist {
   id: number;
   worklistNumber: string;
-  projectId: string;
-  projectNumber: string;
-  projectAddress: string;
-  cutlistRefs: string[];
+  /** @nullable */
+  projectId?: string | null;
+  /** @nullable */
+  projectAddress?: string | null;
+  cutlistRefs?: string[];
   machineType: WorklistMachineType;
   folderNumber: number;
-  folderRef: string;
   status: WorklistStatus;
+  /**
+   * ID of the user who created the worklist
+   * @nullable
+   */
+  createdBy?: number | null;
   createdAt: string;
-  /** @nullable */
-  createdByUsername?: string | null;
   items: WorklistItem[];
 }
 
@@ -232,10 +294,9 @@ export const CreateWorklistBodyMachineType = {
 } as const;
 
 export interface CreateWorklistBody {
-  projectId: string;
-  projectNumber: string;
-  projectAddress: string;
-  cutlistRefs: string[];
+  projectId?: string;
+  projectAddress?: string;
+  cutlistRefs?: string[];
   machineType: CreateWorklistBodyMachineType;
 }
 
@@ -244,8 +305,8 @@ export type UpdateWorklistBodyStatus =
 
 export const UpdateWorklistBodyStatus = {
   draft: "draft",
-  active: "active",
-  complete: "complete",
+  submitted: "submitted",
+  completed: "completed",
 } as const;
 
 export interface UpdateWorklistBody {
@@ -268,6 +329,8 @@ export interface CreateWorklistItemBody {
 }
 
 export interface UpdateWorklistItemBody {
+  pcode?: string;
+  displayName?: string;
   quantity?: number;
   /** @nullable */
   length?: number | null;
@@ -275,40 +338,48 @@ export interface UpdateWorklistItemBody {
   width?: number | null;
   /** @nullable */
   notes?: string | null;
-  sortOrder?: number;
 }
 
+export type WorklistStatsByStatus = { [key: string]: number };
+
 export interface WorklistStats {
-  totalWorklists: number;
-  draftCount: number;
-  activeCount: number;
-  completeCount: number;
-  totalItemsThisMonth: number;
+  total: number;
+  byStatus: WorklistStatsByStatus;
   nextWorklistNumber: string;
 }
 
+export type FolderRefMachineType =
+  (typeof FolderRefMachineType)[keyof typeof FolderRefMachineType];
+
+export const FolderRefMachineType = {
+  B: "B",
+  C: "C",
+} as const;
+
 export interface FolderRef {
-  machine: string;
-  folderNumber: number;
-  folderRef: string;
+  machineType: FolderRefMachineType;
+  next: number;
+  formatted: string;
 }
 
 export interface AppSettings {
-  filemakerServerUrl: string;
-  filemakerDatabase: string;
-  filemakerUsername: string;
-  csvServerPath: string;
-  worklistStartNumber: number;
-  nextWorklistNumber: number;
+  filemaker_server_url: string;
+  filemaker_database: string;
+  filemaker_username: string;
+  filemaker_password?: string;
+  csv_server_path: string;
+  worklist_start_number: string;
 }
 
 export interface UpdateSettingsBody {
-  filemakerServerUrl?: string;
-  filemakerDatabase?: string;
-  filemakerUsername?: string;
-  filemakerPassword?: string;
-  csvServerPath?: string;
-  worklistStartNumber?: number;
+  filemaker_server_url?: string;
+  filemaker_database?: string;
+  filemaker_username?: string;
+  filemaker_password?: string;
+  csv_server_path?: string;
+  worklist_start_number?: number;
+  /** When true, resets the sequence counter even if worklists already exist */
+  force_override?: boolean;
 }
 
 export type ListProjectsParams = {
@@ -316,7 +387,16 @@ export type ListProjectsParams = {
 };
 
 export type ListCutlistsParams = {
-  projectId?: string;
+  projectId: string;
+};
+
+export type ListStockbookOtypes200 = {
+  otypes: string[];
+};
+
+export type ListStockbookParams = {
+  search?: string;
+  otype?: string;
 };
 
 export type ListMaterialsParams = {
@@ -333,8 +413,8 @@ export type ListWorklistsStatus =
 
 export const ListWorklistsStatus = {
   draft: "draft",
-  active: "active",
-  complete: "complete",
+  submitted: "submitted",
+  completed: "completed",
 } as const;
 
 export type GetNextFolderParams = {
@@ -348,43 +428,3 @@ export const GetNextFolderMachine = {
   B: "B",
   C: "C",
 } as const;
-
-export interface StockbookItem {
-  id: number;
-  pcode: string;
-  description: string;
-  qtyOnHand: number;
-  /** @nullable */
-  unit?: string | null;
-  /** @nullable */
-  location?: string | null;
-  /** @nullable */
-  otype?: string | null;
-  /** @nullable */
-  project?: string | null;
-  /** @nullable */
-  pid?: string | null;
-  /** @nullable */
-  lastSyncedAt?: string | null;
-  updatedAt: string;
-}
-
-export interface StockbookListResponse {
-  items: StockbookItem[];
-  /** @nullable */
-  lastSyncedAt?: string | null;
-  total: number;
-}
-
-export interface StockbookSyncResponse {
-  synced: number;
-  /** @nullable */
-  syncedAt?: string | null;
-  /** @nullable */
-  message?: string | null;
-}
-
-export type ListStockbookParams = {
-  search?: string;
-  otype?: string;
-};

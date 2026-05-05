@@ -274,6 +274,8 @@ export interface FMStockbookRecord {
   otype: string | null;
   project: string | null;
   pid: string | null;
+  /** URL or base64 image data from the FileMaker Image field. */
+  image: string | null;
   tracked: boolean;
   /** Replit_ModifiedDate parsed to epoch ms (0 if field absent/unparseable). */
   fmModifiedMs: number;
@@ -414,6 +416,7 @@ export async function getAllStockbook(
           otype: sanitizeStr(r.fieldData["OTYPE"] as string | undefined),
           project: sanitizeStr(r.fieldData["Project"] as string | undefined),
           pid: sanitizeStr(r.fieldData["PID"] as string | undefined),
+          image: sanitizeStr(r.fieldData["Image"] as string | undefined) ?? null,
           tracked: rawTracked === 1 || rawTracked === "1" || rawTracked === true,
           fmModifiedMs,
         });

@@ -15,8 +15,15 @@ async function ensureSessionsTable(): Promise<void> {
   `);
 }
 
+async function ensureStockbookImageColumn(): Promise<void> {
+  await pool.query(`
+    ALTER TABLE stockbook ADD COLUMN IF NOT EXISTS image TEXT;
+  `);
+}
+
 export async function seedDatabase(): Promise<void> {
   await ensureSessionsTable();
+  await ensureStockbookImageColumn();
 
   const [{ count: userCount }] = await db
     .select({ count: count() })

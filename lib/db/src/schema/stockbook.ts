@@ -21,6 +21,7 @@ export const stockbookTable = pgTable("stockbook", {
   otype: text("otype"),
   project: text("project"),
   pid: text("pid"),
+  image: text("image"),
   tagStockTracked: boolean("tag_stock_tracked").notNull().default(true),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })

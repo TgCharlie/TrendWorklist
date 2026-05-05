@@ -9,7 +9,6 @@ import {
   useDeleteWorklistItem,
   useUpdateWorklist,
   useListStockbook,
-  useUpdateStockTracked,
   getGetWorklistQueryKey,
   getListWorklistsQueryKey,
   getListMaterialsQueryKey,
@@ -63,8 +62,6 @@ export default function WorklistDetailPage() {
   const [showAddItem, setShowAddItem] = useState(false);
   const [itemForm, setItemForm] = useState({ ...EMPTY_ITEM });
   const [stockSearch, setStockSearch] = useState<string | undefined>(undefined);
-  // Local tracked state per item id — defaults true (all items in our stockbook are Tag_StockTracked=1)
-  const [trackedMap, setTrackedMap] = useState<Record<number, boolean>>({});
 
   const { data: worklist, isLoading } = useGetWorklist(numId, {
     query: { queryKey: getGetWorklistQueryKey(numId), enabled: !!numId },
@@ -110,29 +107,6 @@ export default function WorklistDetailPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetWorklistQueryKey(numId) });
         toast({ title: "Item removed" });
-      },
-    },
-  });
-
-  const updateTrackedMutation = useUpdateStockTracked({
-    mutation: {
-      onSuccess: (_, { pcode, data }) => {
-        if (!data.tracked) {
-          toast({ title: `Stock tracking disabled for ${pcode}`, description: "Tag_StockTracked set to 0 in FileMaker" });
-        }
-      },
-      onError: (err, { pcode, data }) => {
-        // Revert optimistic update on error
-        const items = worklist?.items ?? [];
-        const item = items.find((i) => i.pcode === pcode);
-        if (item) {
-          setTrackedMap((prev) => ({ ...prev, [item.id]: !data.tracked }));
-        }
-        toast({
-          title: "Failed to update stock tracking",
-          description: (err as Error).message,
-          variant: "destructive",
-        });
       },
     },
   });
@@ -349,14 +323,11 @@ export default function WorklistDetailPage() {
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">L (mm)</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">W (mm)</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Notes</th>
-                <th className="text-center px-3 py-2.5 text-zinc-500 font-medium w-24 min-w-24 whitespace-nowrap" title="Tag_StockTracked — uncheck to turn off tracking in FileMaker">TagTracked</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
               {items.map((item, i) => {
-                const isTracked = trackedMap[item.id] ?? true;
-                const isPending = updateTrackedMutation.isPending && updateTrackedMutation.variables?.pcode === item.pcode;
                 return (
                   <tr
                     key={item.id}
@@ -372,22 +343,6 @@ export default function WorklistDetailPage() {
                       {item.width ?? "—"}
                     </td>
                     <td className="px-4 py-2.5 text-zinc-500 text-xs">{item.notes}</td>
-                    <td className="px-3 py-2.5 text-center w-24 min-w-24 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={isTracked}
-                        disabled={isPending || !item.pcode}
-                        title={isTracked ? "Stock tracked in FileMaker — click to disable" : "Stock tracking disabled"}
-                        onChange={(e) => {
-                          if (!item.pcode) return;
-                          const newTracked = e.target.checked;
-                          // Optimistic update
-                          setTrackedMap((prev) => ({ ...prev, [item.id]: newTracked }));
-                          updateTrackedMutation.mutate({ pcode: item.pcode, data: { tracked: newTracked } });
-                        }}
-                        className="w-4 h-4 accent-blue-600 cursor-pointer disabled:cursor-wait"
-                      />
-                    </td>
                     <td className="px-4 py-2.5">
                       <button
                         type="button"

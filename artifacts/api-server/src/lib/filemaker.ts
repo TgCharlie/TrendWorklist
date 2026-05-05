@@ -31,6 +31,7 @@ interface FileMakerResponse {
     data?: FileMakerRecord[];
     dataInfo?: {
       totalRecordCount: number;
+      foundCount: number;
       returnedCount: number;
     };
   };
@@ -146,9 +147,12 @@ async function findRecordsPage(
     throw new Error(`FileMaker error: ${data.messages[0]?.message}`);
   }
 
+  // For _find requests, foundCount is the matching record count.
+  // For GET /records, foundCount is absent so fall back to totalRecordCount.
+  const info = data.response.dataInfo;
   return {
     records: data.response.data ?? [],
-    total: data.response.dataInfo?.totalRecordCount ?? 0,
+    total: info?.foundCount ?? info?.totalRecordCount ?? 0,
   };
 }
 
@@ -285,7 +289,10 @@ export async function getAllStockbook(
     let knownTotal = 0;
     let nextProgressAt = 50;
 
-    const query = [{ PCODE: "*" }];
+    // Find all records where Tag_StockTracked = "1" directly in FileMaker.
+    // This returns the 18k+ tracked items rather than the 814-record found set
+    // that PCODE: "*" resolves to (records with a non-empty PCODE only).
+    const query = [{ Tag_StockTracked: "1" }];
 
     while (true) {
       const { records, total } = await findRecordsPage(
@@ -296,8 +303,6 @@ export async function getAllStockbook(
       for (const r of records) {
         const pcode = sanitizeStr(r.fieldData["PCODE"] as string | undefined);
         if (!pcode) continue;
-        const trackedValue = sanitizeStr(r.fieldData["Tag_StockTracked"] as string | undefined);
-        if (trackedValue !== "1") continue;
         const item = sanitizeStr(
           (r.fieldData["Item"] as string | undefined) ??
           (r.fieldData["Description"] as string | undefined),

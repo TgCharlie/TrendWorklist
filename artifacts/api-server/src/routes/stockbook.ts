@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
-import { like, or, sql } from "drizzle-orm";
+import { and, or, ilike, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
 import { getAllStockbook, debugStockbookFind, fmTextTimestampToMs } from "../lib/filemaker";
 import { getSetting, setSetting } from "../lib/settings";
@@ -10,15 +10,20 @@ const router = Router();
 
 router.get("/", requireAuth, async (req, res): Promise<void> => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const terms = search.split(/\s+/).filter(Boolean);
 
-  const rows = search
+  const rows = terms.length
     ? await db
         .select()
         .from(stockbookTable)
         .where(
-          or(
-            like(stockbookTable.pcode, `%${search}%`),
-            like(stockbookTable.description, `%${search}%`),
+          and(
+            ...terms.map((term) =>
+              or(
+                ilike(stockbookTable.pcode, `%${term}%`),
+                ilike(stockbookTable.description, `%${term}%`),
+              ),
+            ),
           ),
         )
         .orderBy(stockbookTable.pcode)

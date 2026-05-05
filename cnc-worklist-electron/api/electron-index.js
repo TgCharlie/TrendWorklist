@@ -53252,10 +53252,15 @@ var logger = (0, import_pino.default)({
 var router5 = (0, import_express5.Router)();
 router5.get("/", requireAuth, async (req, res) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
-  const rows = search ? await db.select().from(stockbookTable).where(
-    or(
-      like(stockbookTable.pcode, `%${search}%`),
-      like(stockbookTable.description, `%${search}%`)
+  const terms = search.split(/\s+/).filter(Boolean);
+  const rows = terms.length ? await db.select().from(stockbookTable).where(
+    and(
+      ...terms.map(
+        (term) => or(
+          ilike(stockbookTable.pcode, `%${term}%`),
+          ilike(stockbookTable.description, `%${term}%`)
+        )
+      )
     )
   ).orderBy(stockbookTable.pcode) : await db.select().from(stockbookTable).orderBy(stockbookTable.pcode);
   const lastSynced = rows.reduce(

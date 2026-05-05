@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
 import { and, or, ilike, eq, isNotNull, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
-import { getAllStockbook, debugStockbookFind, fmTextTimestampToMs, setStockTracked } from "../lib/filemaker";
+import { getAllStockbook, debugStockbookFind, fmTextTimestampToMs, setStockTracked, fetchFMImage } from "../lib/filemaker";
 import { getSetting, setSetting } from "../lib/settings";
 import { logger } from "../lib/logger";
 
@@ -281,6 +281,49 @@ router.patch("/:pcode/tracked", requireAuth, async (req, res): Promise<void> => 
     const message = err instanceof Error ? err.message : "FileMaker update failed";
     logger.error({ err, pcode }, `Failed to update Tag_StockTracked for ${pcode}: ${message}`);
     res.status(502).json({ error: message });
+  }
+});
+
+// Proxy a FileMaker container image so the browser never needs FM credentials.
+// Only allows URLs stored in our own stockbook table (prevents open-redirect abuse).
+router.get("/image-proxy", requireAuth, async (req, res): Promise<void> => {
+  const url = typeof req.query.url === "string" ? req.query.url : null;
+  if (!url) {
+    res.status(400).json({ error: "url query param required" });
+    return;
+  }
+
+  // Validate the URL is actually stored in our DB before proxying it.
+  const [row] = await db
+    .select({ image: stockbookTable.image })
+    .from(stockbookTable)
+    .where(eq(stockbookTable.image, url))
+    .limit(1);
+
+  if (!row) {
+    res.status(403).json({ error: "URL not found in stockbook" });
+    return;
+  }
+
+  try {
+    const upstream = await fetchFMImage(url);
+    if (!upstream.ok) {
+      res.status(upstream.status).json({ error: "FileMaker returned non-OK status" });
+      return;
+    }
+    const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    if (upstream.body) {
+      const { Readable } = await import("stream");
+      Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
+    } else {
+      const buf = await upstream.arrayBuffer();
+      res.send(Buffer.from(buf));
+    }
+  } catch (err) {
+    logger.error({ err, url }, "Image proxy fetch failed");
+    res.status(502).json({ error: "Failed to fetch image from FileMaker" });
   }
 });
 

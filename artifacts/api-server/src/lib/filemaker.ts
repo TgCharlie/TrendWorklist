@@ -438,6 +438,17 @@ export async function getAllStockbook(
   });
 }
 
+// Fetch a FileMaker container/streaming image URL using Basic Auth credentials.
+// These streaming URLs (Streaming_SSL/MainDB/...) require the FM username/password
+// rather than a Data API bearer token.
+export async function fetchFMImage(imageUrl: string): Promise<Response> {
+  const config = await getConfig();
+  const credentials = Buffer.from(`${config.username}:${config.password}`).toString("base64");
+  return sslFetch(config.allowSelfSigned, imageUrl, {
+    headers: { Authorization: `Basic ${credentials}` },
+  });
+}
+
 // Update Tag_StockTracked for a given PCODE in the FileMaker StockBook layout.
 // Returns true when the record was found and updated, false when the PCODE doesn't exist.
 export async function setStockTracked(pcode: string, tracked: boolean): Promise<boolean> {

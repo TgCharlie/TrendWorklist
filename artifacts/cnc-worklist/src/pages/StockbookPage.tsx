@@ -131,7 +131,7 @@ function StockItemModal({ item, onClose }: { item: StockbookRow | null; onClose:
             {item.image && !imgError && (
               <div className="rounded-lg border border-zinc-200 bg-zinc-50 overflow-hidden flex items-center justify-center" style={{ maxHeight: 240 }}>
                 <img
-                  src={item.image}
+                  src={`/api/stockbook/image-proxy?url=${encodeURIComponent(item.image)}`}
                   alt={item.description || item.pcode}
                   className="max-h-60 max-w-full object-contain"
                   onError={() => setImgError(true)}

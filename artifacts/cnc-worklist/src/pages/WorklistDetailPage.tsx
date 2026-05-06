@@ -35,6 +35,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const STATUS_OPTIONS: WorklistStatus[] = ["draft", "active", "complete"];
 
@@ -62,6 +63,7 @@ export default function WorklistDetailPage() {
   const [showAddItem, setShowAddItem] = useState(false);
   const [itemForm, setItemForm] = useState({ ...EMPTY_ITEM });
   const [stockSearch, setStockSearch] = useState<string | undefined>(undefined);
+  const [deletePending, setDeletePending] = useState<{ id: number; pcode: string | null } | null>(null);
 
   const { data: worklist, isLoading } = useGetWorklist(numId, {
     query: { queryKey: getGetWorklistQueryKey(numId), enabled: !!numId },
@@ -346,11 +348,7 @@ export default function WorklistDetailPage() {
                     <td className="px-4 py-2.5">
                       <button
                         type="button"
-                        onClick={() => {
-                          if (confirm(`Delete ${item.pcode ?? "item"}?`)) {
-                            deleteItemMutation.mutate({ id: numId, itemId: item.id });
-                          }
-                        }}
+                        onClick={() => setDeletePending({ id: item.id, pcode: item.pcode ?? null })}
                         className="text-zinc-400 hover:text-red-500 transition-colors"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -370,6 +368,15 @@ export default function WorklistDetailPage() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deletePending}
+        title="Remove item"
+        message={deletePending ? `Are you sure you want to remove ${deletePending.pcode ?? "this item"} from the worklist?` : ""}
+        confirmLabel="Remove"
+        onConfirm={() => { if (deletePending) deleteItemMutation.mutate({ id: numId, itemId: deletePending.id }); }}
+        onCancel={() => setDeletePending(null)}
+      />
 
       {/* Add Item Dialog */}
       <Dialog

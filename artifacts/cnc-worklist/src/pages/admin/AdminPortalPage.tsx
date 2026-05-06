@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/hooks/useApi";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
@@ -69,6 +70,7 @@ function UsersTab() {
   const [editUser, setEditUser] = useState<User | null>(null);
   const [form, setForm] = useState({ username: "", pin: "", role: "operator" as "admin" | "operator" });
   const [editForm, setEditForm] = useState({ pin: "", role: "operator" as "admin" | "operator", active: true });
+  const [deletePending, setDeletePending] = useState<User | null>(null);
 
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ["users"],
@@ -168,9 +170,7 @@ function UsersTab() {
                 </button>
                 {u.id !== currentUser?.id && (
                   <button
-                    onClick={() => {
-                      if (confirm(`Delete user "${u.username}"?`)) deleteMutation.mutate(u.id);
-                    }}
+                    onClick={() => setDeletePending(u)}
                     className="text-zinc-400 hover:text-red-500 transition-colors p-1.5"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -183,6 +183,15 @@ function UsersTab() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deletePending}
+        title="Delete user"
+        message={deletePending ? `Are you sure you want to delete the user "${deletePending.username}"? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        onConfirm={() => { if (deletePending) deleteMutation.mutate(deletePending.id); }}
+        onCancel={() => setDeletePending(null)}
+      />
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="bg-white border-zinc-200 text-zinc-950">

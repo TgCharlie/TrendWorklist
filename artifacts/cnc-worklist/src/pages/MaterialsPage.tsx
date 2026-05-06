@@ -16,6 +16,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 function StockBadge({ materialId }: { materialId: number }) {
   const { data, isLoading, isError } = useGetMaterialStock(materialId, {
@@ -209,6 +210,7 @@ export default function MaterialsPage() {
   const [editItem, setEditItem] = useState<Material | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [selectedStockbookItem, setSelectedStockbookItem] = useState<StockbookItem | null>(null);
+  const [deletePending, setDeletePending] = useState<Material | null>(null);
 
   const { data: materials = [], isLoading } = useQuery<Material[]>({
     queryKey: ["materials", search],
@@ -407,9 +409,7 @@ export default function MaterialsPage() {
                           </button>
                           <button
                             data-testid={`button-delete-material-${m.id}`}
-                            onClick={() => {
-                              if (confirm(`Delete ${m.pcode}?`)) deleteMutation.mutate(m.id);
-                            }}
+                            onClick={() => setDeletePending(m)}
                             className="text-zinc-500 hover:text-red-400 transition-colors"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -426,6 +426,15 @@ export default function MaterialsPage() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deletePending}
+        title="Delete material"
+        message={deletePending ? `Are you sure you want to delete ${deletePending.pcode}? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        onConfirm={() => { if (deletePending) deleteMutation.mutate(deletePending.id); }}
+        onCancel={() => setDeletePending(null)}
+      />
 
       <Dialog open={showCreate || !!editItem} onOpenChange={(open) => {
         if (!open) closeDialog();

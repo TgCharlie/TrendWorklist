@@ -172,16 +172,27 @@ async function findRecords(
 export async function findProjects(search?: string): Promise<Array<Record<string, unknown>>> {
   return withToken(async (config, token) => {
     const layout = "Projects";
-    const query = search ? [{ Address: `*${search}*` }] : undefined;
+    // Search by ProjectID OR Address so users can look up by PID number or street address.
+    // FileMaker Data API treats multiple objects in the query array as OR criteria.
+    const query = search
+      ? [{ ProjectID: `*${search}*` }, { Address: `*${search}*` }]
+      : undefined;
     const records = await findRecords(config, token, layout, query, 200);
-    return records.map((r) => ({
-      id: r.fieldData["ProjectID"] as string,
-      recordId: r.recordId,
-      address: r.fieldData["Address"] as string,
-      clientName: r.fieldData["ClientName"] as string,
-      status: r.fieldData["Status"] as string,
-      ...r.fieldData,
-    }));
+    return records.map((r) => {
+      const pid = r.fieldData["ProjectID"] as string;
+      const projNumber = (r.fieldData["ProjectNumber"] as string | undefined) ?? pid;
+      return {
+        id: pid,
+        // Explicit camelCase aliases expected by the frontend
+        projectId: pid,
+        projectNumber: projNumber,
+        recordId: r.recordId,
+        address: r.fieldData["Address"] as string,
+        clientName: r.fieldData["ClientName"] as string,
+        status: r.fieldData["Status"] as string,
+        ...r.fieldData,
+      };
+    });
   });
 }
 
@@ -192,8 +203,12 @@ export async function findProjectById(projectId: string): Promise<Record<string,
     const records = await findRecords(config, token, layout, [{ ProjectID: projectId }], 1);
     if (!records.length) return null;
     const r = records[0];
+    const pid = r.fieldData["ProjectID"] as string;
+    const projNumber = (r.fieldData["ProjectNumber"] as string | undefined) ?? pid;
     return {
-      id: r.fieldData["ProjectID"] as string,
+      id: pid,
+      projectId: pid,
+      projectNumber: projNumber,
       recordId: r.recordId,
       address: r.fieldData["Address"] as string,
       clientName: r.fieldData["ClientName"] as string,

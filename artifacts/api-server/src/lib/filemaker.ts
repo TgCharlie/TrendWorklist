@@ -222,6 +222,10 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
     const layout = "LIST_Cutlist";
     // Project link field in this layout is 'Pid' (confirmed via FM Data API debug)
     const records = await findRecords(config, token, layout, [{ Pid: projectId }], 200);
+    if (records.length > 0) {
+      console.log("[FM DEBUG] LIST_Cutlist field keys:", JSON.stringify(Object.keys(records[0].fieldData)));
+      console.log("[FM DEBUG] First record:", JSON.stringify(records[0].fieldData));
+    }
     return records.map((r) => {
       const num = String(r.fieldData["CutlistNumber"] ?? "");
       return {

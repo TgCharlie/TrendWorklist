@@ -30,7 +30,7 @@ function StockBadge({ materialId }: { materialId: number }) {
   if (isError || stock == null) {
     return <span className="text-zinc-300 text-xs">—</span>;
   }
-  const qty = stock.quantity;
+  const qty = stock.qtyOnHand;
   const unit = stock.unit ?? "";
   const color =
     qty <= 0

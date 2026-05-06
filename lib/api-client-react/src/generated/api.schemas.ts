@@ -100,12 +100,18 @@ export interface Project {
  * Cutlist record from FileMaker (may include additional FileMaker field data)
  */
 export interface Cutlist {
-  /** FileMaker CutlistID value */
+  /** FileMaker CutlistNumber value */
   id: string;
+  /** Alias for id — FileMaker CutlistNumber */
+  cutlistId?: string;
+  /** FileMaker CutlistNumber value */
+  cutlistNumber?: string;
   /** FileMaker internal record ID */
   recordId?: string;
   /** @nullable */
   projectId?: string | null;
+  /** @nullable */
+  item?: string | null;
   /** @nullable */
   description?: string | null;
   /** @nullable */

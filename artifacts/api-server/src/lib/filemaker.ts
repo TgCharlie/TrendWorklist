@@ -221,6 +221,10 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
   return withToken(async (config, token) => {
     const layout = "LIST_Cutlist";
     const records = await findRecords(config, token, layout, [{ PID: projectId }], 200);
+    if (records.length > 0) {
+      console.log("[FM DEBUG] LIST_Cutlist field keys:", Object.keys(records[0].fieldData));
+      console.log("[FM DEBUG] First record fieldData:", JSON.stringify(records[0].fieldData));
+    }
     return records.map((r) => {
       const num = String(r.fieldData["CutlistNumber"] ?? "");
       return {

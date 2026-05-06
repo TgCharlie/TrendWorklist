@@ -22,6 +22,7 @@ async function sslFetch(allowSelfSigned: boolean, url: string, init?: RequestIni
 
 interface FileMakerRecord {
   fieldData: Record<string, unknown>;
+  portalData: Record<string, Array<Record<string, unknown>>>;
   recordId: string;
   modId: string;
 }
@@ -223,19 +224,25 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
     // Project link field in this layout is 'Pid' (confirmed via FM Data API debug)
     const records = await findRecords(config, token, layout, [{ Pid: projectId }], 200);
     if (records.length > 0) {
-      console.log("[FM DEBUG] LIST_Cutlist field keys:", JSON.stringify(Object.keys(records[0].fieldData)));
-      console.log("[FM DEBUG] First record:", JSON.stringify(records[0].fieldData));
+      console.log("[FM DEBUG] Full first record:", JSON.stringify(records[0]));
     }
     return records.map((r) => {
       const num = String(r.fieldData["CutlistNumber"] ?? "");
+      // Item may be in fieldData (as a direct related field) or in portalData (as a portal row).
+      // Check fieldData first under both possible key names, then fall back to first portal row.
+      const itemFromField = (r.fieldData["TRACK_MAIN::Item"] ?? r.fieldData["TRAK_MAIN::Item"] ?? r.fieldData["Item"] ?? "") as string;
+      const portalKeys = Object.keys(r.portalData ?? {});
+      const itemFromPortal = portalKeys.length > 0
+        ? String((r.portalData[portalKeys[0]]?.[0]?.["TRACK_MAIN::Item"] ?? r.portalData[portalKeys[0]]?.[0]?.["TRAK_MAIN::Item"] ?? r.portalData[portalKeys[0]]?.[0]?.["Item"] ?? ""))
+        : "";
+      const item = itemFromField || itemFromPortal;
       return {
         id: num,
         cutlistId: num,
         cutlistNumber: num,
         recordId: r.recordId,
         projectId: String(r.fieldData["Pid"] ?? ""),
-        // Item comes from a related table — FileMaker Data API returns it as 'TRACK_MAIN::Item'
-        item: (r.fieldData["TRACK_MAIN::Item"] ?? "") as string,
+        item,
         description: (r.fieldData["Description"] ?? "") as string,
         status: (r.fieldData["Status"] ?? "") as string,
         ...r.fieldData,

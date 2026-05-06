@@ -216,32 +216,40 @@ export async function findProjectById(projectId: string): Promise<Record<string,
   });
 }
 
-// Cutlists layout columns: CutlistID, ProjectID, Description, Status
+// Cutlists layout: LIST_Cutlist — key fields: CutlistNumber, PID, Description, Status
 export async function findCutlistsByProject(projectId: string): Promise<Array<Record<string, unknown>>> {
   return withToken(async (config, token) => {
-    const layout = "Cutlists";
-    const records = await findRecords(config, token, layout, [{ ProjectID: projectId }], 200);
-    return records.map((r) => ({
-      id: r.fieldData["CutlistID"] as string,
-      recordId: r.recordId,
-      projectId: r.fieldData["ProjectID"] as string,
-      description: r.fieldData["Description"] as string,
-      status: r.fieldData["Status"] as string,
-      ...r.fieldData,
-    }));
+    const layout = "LIST_Cutlist";
+    const records = await findRecords(config, token, layout, [{ PID: projectId }], 200);
+    return records.map((r) => {
+      const num = String(r.fieldData["CutlistNumber"] ?? "");
+      return {
+        id: num,
+        cutlistId: num,
+        cutlistNumber: num,
+        recordId: r.recordId,
+        projectId: String(r.fieldData["PID"] ?? ""),
+        description: r.fieldData["Description"] as string,
+        status: r.fieldData["Status"] as string,
+        ...r.fieldData,
+      };
+    });
   });
 }
 
 export async function findCutlistById(cutlistId: string): Promise<Record<string, unknown> | null> {
   return withToken(async (config, token) => {
-    const layout = "Cutlists";
-    const records = await findRecords(config, token, layout, [{ CutlistID: cutlistId }], 1);
+    const layout = "LIST_Cutlist";
+    const records = await findRecords(config, token, layout, [{ CutlistNumber: cutlistId }], 1);
     if (!records.length) return null;
     const r = records[0];
+    const num = String(r.fieldData["CutlistNumber"] ?? "");
     return {
-      id: r.fieldData["CutlistID"] as string,
+      id: num,
+      cutlistId: num,
+      cutlistNumber: num,
       recordId: r.recordId,
-      projectId: r.fieldData["ProjectID"] as string,
+      projectId: String(r.fieldData["PID"] ?? ""),
       description: r.fieldData["Description"] as string,
       status: r.fieldData["Status"] as string,
       ...r.fieldData,

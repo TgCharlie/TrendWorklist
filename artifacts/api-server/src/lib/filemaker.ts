@@ -220,11 +220,8 @@ export async function findProjectById(projectId: string): Promise<Record<string,
 export async function findCutlistsByProject(projectId: string): Promise<Array<Record<string, unknown>>> {
   return withToken(async (config, token) => {
     const layout = "LIST_Cutlist";
-    const records = await findRecords(config, token, layout, [{ PID: projectId }], 200);
-    if (records.length > 0) {
-      console.log("[FM DEBUG] LIST_Cutlist field keys:", Object.keys(records[0].fieldData));
-      console.log("[FM DEBUG] First record fieldData:", JSON.stringify(records[0].fieldData));
-    }
+    // Project link field in this layout is 'Pid' (confirmed via FM Data API debug)
+    const records = await findRecords(config, token, layout, [{ Pid: projectId }], 200);
     return records.map((r) => {
       const num = String(r.fieldData["CutlistNumber"] ?? "");
       return {
@@ -232,10 +229,11 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
         cutlistId: num,
         cutlistNumber: num,
         recordId: r.recordId,
-        projectId: String(r.fieldData["PID"] ?? ""),
-        item: r.fieldData["Item"] as string,
-        description: r.fieldData["Description"] as string,
-        status: r.fieldData["Status"] as string,
+        projectId: String(r.fieldData["Pid"] ?? ""),
+        // 'Item' field must be added to the LIST_Cutlist layout in FileMaker to appear here
+        item: (r.fieldData["Item"] ?? r.fieldData["item"] ?? "") as string,
+        description: (r.fieldData["Description"] ?? "") as string,
+        status: (r.fieldData["Status"] ?? "") as string,
         ...r.fieldData,
       };
     });

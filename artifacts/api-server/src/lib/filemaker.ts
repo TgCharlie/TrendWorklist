@@ -168,21 +168,19 @@ async function findRecords(
   return records;
 }
 
-// Projects layout: PROJ_MAIN — key fields: ProjectID (PID), ProjectName, Address, ClientName, Status
+// Projects layout: PROJ_MAIN — key fields: PID, ProjectName
 export async function findProjects(search?: string): Promise<Array<Record<string, unknown>>> {
   return withToken(async (config, token) => {
     const layout = "PROJ_MAIN";
-    // Search by ProjectID OR ProjectName so users can look up by PID number or project name.
-    // FileMaker Data API treats multiple objects in the query array as OR criteria.
+    // Search by PID OR ProjectName. FileMaker Data API treats multiple query objects as OR.
     const query = search
-      ? [{ ProjectID: `*${search}*` }, { ProjectName: `*${search}*` }]
+      ? [{ PID: `*${search}*` }, { ProjectName: `*${search}*` }]
       : undefined;
     const records = await findRecords(config, token, layout, query, 200);
     return records.map((r) => {
-      const pid = r.fieldData["ProjectID"] as string;
+      const pid = String(r.fieldData["PID"] ?? "");
       return {
         id: pid,
-        // Explicit camelCase aliases expected by the frontend
         projectId: pid,
         projectNumber: pid,
         projectName: r.fieldData["ProjectName"] as string,
@@ -196,14 +194,14 @@ export async function findProjects(search?: string): Promise<Array<Record<string
   });
 }
 
-// Direct project lookup by ProjectID field (no list scan / cache dependency)
+// Direct project lookup by PID field in PROJ_MAIN layout
 export async function findProjectById(projectId: string): Promise<Record<string, unknown> | null> {
   return withToken(async (config, token) => {
     const layout = "PROJ_MAIN";
-    const records = await findRecords(config, token, layout, [{ ProjectID: projectId }], 1);
+    const records = await findRecords(config, token, layout, [{ PID: projectId }], 1);
     if (!records.length) return null;
     const r = records[0];
-    const pid = r.fieldData["ProjectID"] as string;
+    const pid = String(r.fieldData["PID"] ?? "");
     return {
       id: pid,
       projectId: pid,

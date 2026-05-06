@@ -230,8 +230,8 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
         cutlistNumber: num,
         recordId: r.recordId,
         projectId: String(r.fieldData["Pid"] ?? ""),
-        // 'Item' field must be added to the LIST_Cutlist layout in FileMaker to appear here
-        item: (r.fieldData["Item"] ?? r.fieldData["item"] ?? "") as string,
+        // Item comes from a related table — FileMaker Data API returns it as 'TRACK_MAIN::Item'
+        item: (r.fieldData["TRACK_MAIN::Item"] ?? "") as string,
         description: (r.fieldData["Description"] ?? "") as string,
         status: (r.fieldData["Status"] ?? "") as string,
         ...r.fieldData,

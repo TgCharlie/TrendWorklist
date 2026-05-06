@@ -151,12 +151,12 @@ function ProjectStep({
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-blue-600 font-bold">{p.projectNumber}</span>
+                  <span className="font-mono text-xs text-blue-600 font-bold">{p.projectId as string}</span>
                   {p.status && (
-                    <span className="text-xs text-zinc-500 capitalize">{p.status}</span>
+                    <span className="text-xs text-zinc-500 capitalize">{p.status as string}</span>
                   )}
                 </div>
-                <p className="text-zinc-800 text-sm truncate">{p.address}</p>
+                <p className="text-zinc-800 text-sm truncate">{(p.projectName ?? p.address) as string}</p>
               </button>
             ))
           )}

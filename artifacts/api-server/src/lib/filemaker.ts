@@ -168,24 +168,24 @@ async function findRecords(
   return records;
 }
 
-// Projects layout columns: ProjectID, Address, ClientName, Status
+// Projects layout: PROJ_MAIN — key fields: ProjectID (PID), ProjectName, Address, ClientName, Status
 export async function findProjects(search?: string): Promise<Array<Record<string, unknown>>> {
   return withToken(async (config, token) => {
-    const layout = "Projects";
-    // Search by ProjectID OR Address so users can look up by PID number or street address.
+    const layout = "PROJ_MAIN";
+    // Search by ProjectID OR ProjectName so users can look up by PID number or project name.
     // FileMaker Data API treats multiple objects in the query array as OR criteria.
     const query = search
-      ? [{ ProjectID: `*${search}*` }, { Address: `*${search}*` }]
+      ? [{ ProjectID: `*${search}*` }, { ProjectName: `*${search}*` }]
       : undefined;
     const records = await findRecords(config, token, layout, query, 200);
     return records.map((r) => {
       const pid = r.fieldData["ProjectID"] as string;
-      const projNumber = (r.fieldData["ProjectNumber"] as string | undefined) ?? pid;
       return {
         id: pid,
         // Explicit camelCase aliases expected by the frontend
         projectId: pid,
-        projectNumber: projNumber,
+        projectNumber: pid,
+        projectName: r.fieldData["ProjectName"] as string,
         recordId: r.recordId,
         address: r.fieldData["Address"] as string,
         clientName: r.fieldData["ClientName"] as string,
@@ -199,16 +199,16 @@ export async function findProjects(search?: string): Promise<Array<Record<string
 // Direct project lookup by ProjectID field (no list scan / cache dependency)
 export async function findProjectById(projectId: string): Promise<Record<string, unknown> | null> {
   return withToken(async (config, token) => {
-    const layout = "Projects";
+    const layout = "PROJ_MAIN";
     const records = await findRecords(config, token, layout, [{ ProjectID: projectId }], 1);
     if (!records.length) return null;
     const r = records[0];
     const pid = r.fieldData["ProjectID"] as string;
-    const projNumber = (r.fieldData["ProjectNumber"] as string | undefined) ?? pid;
     return {
       id: pid,
       projectId: pid,
-      projectNumber: projNumber,
+      projectNumber: pid,
+      projectName: r.fieldData["ProjectName"] as string,
       recordId: r.recordId,
       address: r.fieldData["Address"] as string,
       clientName: r.fieldData["ClientName"] as string,

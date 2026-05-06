@@ -467,16 +467,16 @@ export default function WorklistDetailPage() {
                 className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {(["length", "width"] as const).map((dim) => (
+            <div className="grid grid-cols-3 gap-3">
+              {(["length", "width", "thickness"] as const).map((dim) => (
                 <div key={dim} className="space-y-1.5">
                   <Label className="text-zinc-700">
-                    {dim === "length" ? "Length" : "Width"} (mm)
+                    {dim === "length" ? "Length" : dim === "width" ? "Width" : "Thickness"} (mm)
                   </Label>
                   <Input
                     value={itemForm[dim]}
                     onChange={(e) => setItemForm((f) => ({ ...f, [dim]: e.target.value }))}
-                    placeholder={dim === "length" ? "2400" : "1200"}
+                    placeholder={dim === "length" ? "2400" : dim === "width" ? "1200" : "18"}
                     className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
                   />
                 </div>
@@ -516,6 +516,7 @@ export default function WorklistDetailPage() {
                     quantity: itemForm.quantity,
                     length: itemForm.length ? Number(itemForm.length) : undefined,
                     width: itemForm.width ? Number(itemForm.width) : undefined,
+                    thickness: itemForm.thickness ? Number(itemForm.thickness) : undefined,
                     notes: itemForm.notes || undefined,
                   },
                 })

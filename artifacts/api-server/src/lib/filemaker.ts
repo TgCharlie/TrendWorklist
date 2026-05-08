@@ -138,11 +138,7 @@ async function findRecordsPage(
   }
 
   const res = await sslFetch(config.allowSelfSigned, url, options);
-  const rawText = await res.text();
-  if (layout === "LIST_Cutlist") {
-    console.log("[FM RAW] LIST_Cutlist response (first 1500 chars):", rawText.slice(0, 1500));
-  }
-  const data = JSON.parse(rawText) as FileMakerResponse;
+  const data = (await res.json()) as FileMakerResponse;
 
   if (data.messages[0]?.code === "401") {
     return { records: [], total: 0 };
@@ -227,9 +223,6 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
     const layout = "LIST_Cutlist";
     // Project link field in this layout is 'Pid' (confirmed via FM Data API debug)
     const records = await findRecords(config, token, layout, [{ Pid: projectId }], 200);
-    if (records.length > 0) {
-      console.log("[FM DEBUG] Full first record:", JSON.stringify(records[0]));
-    }
     return records.map((r) => {
       const num = String(r.fieldData["CutlistNumber"] ?? "");
       // Item may be in fieldData (as a direct related field) or in portalData (as a portal row).

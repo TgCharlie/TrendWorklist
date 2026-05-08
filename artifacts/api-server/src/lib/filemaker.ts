@@ -223,6 +223,18 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
     const layout = "LIST_Cutlist";
     // Project link field in this layout is 'Pid' (confirmed via FM Data API debug)
     const records = await findRecords(config, token, layout, [{ Pid: projectId }], 200);
+    // Fetch layout metadata to see all fields the Data API knows about
+    try {
+      const metaUrl = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/layouts/${encodeURIComponent(layout)}`;
+      const metaRes = await sslFetch(config.allowSelfSigned, metaUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const metaJson = await metaRes.json() as { response?: { fieldMetaData?: Array<{ name: string; displayType: string }> } };
+      const fieldNames = (metaJson.response?.fieldMetaData ?? []).map((f) => f.name);
+      console.log("[FM LAYOUT META] All fields on LIST_Cutlist layout:", JSON.stringify(fieldNames));
+    } catch (e) {
+      console.log("[FM LAYOUT META] Error fetching metadata:", e);
+    }
     if (records.length > 0) {
       console.log("[FM RAW] Full fieldData record 0:", JSON.stringify(records[0].fieldData));
       console.log("[FM RAW] portalData keys:", JSON.stringify(Object.keys(records[0].portalData ?? {})));

@@ -113,6 +113,8 @@ export interface Cutlist {
   /** @nullable */
   item?: string | null;
   /** @nullable */
+  createdBy?: string | null;
+  /** @nullable */
   description?: string | null;
   /** @nullable */
   status?: string | null;

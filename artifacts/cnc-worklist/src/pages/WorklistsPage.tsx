@@ -334,6 +334,11 @@ function CutlistStep({
                       {(c.item as string) || (c["Item"] as string)}
                     </p>
                   )}
+                  {((c.createdBy as string) || (c["CreatedBy"] as string)) && (
+                    <p className="text-zinc-400 text-xs truncate">
+                      {(c.createdBy as string) || (c["CreatedBy"] as string)}
+                    </p>
+                  )}
                 </div>
               </label>
             ))}

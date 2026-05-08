@@ -240,6 +240,7 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
         recordId: r.recordId,
         projectId: String(r.fieldData["Pid"] ?? ""),
         item,
+        createdBy: (r.fieldData["CreatedBy"] ?? "") as string,
         description: (r.fieldData["Description"] ?? "") as string,
         status: (r.fieldData["Status"] ?? "") as string,
         ...r.fieldData,

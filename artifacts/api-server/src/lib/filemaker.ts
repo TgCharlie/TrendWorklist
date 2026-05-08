@@ -224,11 +224,8 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
     // Project link field in this layout is 'Pid' (confirmed via FM Data API debug)
     const records = await findRecords(config, token, layout, [{ Pid: projectId }], 200);
     if (records.length > 0) {
-      console.log("[FM RAW] fieldData keys:", JSON.stringify(Object.keys(records[0].fieldData)));
+      console.log("[FM RAW] Full fieldData record 0:", JSON.stringify(records[0].fieldData));
       console.log("[FM RAW] portalData keys:", JSON.stringify(Object.keys(records[0].portalData ?? {})));
-      if (Object.keys(records[0].portalData ?? {}).length > 0) {
-        console.log("[FM RAW] portalData content:", JSON.stringify(records[0].portalData));
-      }
     }
     return records.map((r) => {
       const num = String(r.fieldData["CutlistNumber"] ?? "");

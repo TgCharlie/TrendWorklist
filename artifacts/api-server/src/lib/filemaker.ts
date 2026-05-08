@@ -138,7 +138,11 @@ async function findRecordsPage(
   }
 
   const res = await sslFetch(config.allowSelfSigned, url, options);
-  const data = (await res.json()) as FileMakerResponse;
+  const rawText = await res.text();
+  if (layout === "LIST_Cutlist") {
+    console.log("[FM RAW] LIST_Cutlist response (first 1500 chars):", rawText.slice(0, 1500));
+  }
+  const data = JSON.parse(rawText) as FileMakerResponse;
 
   if (data.messages[0]?.code === "401") {
     return { records: [], total: 0 };

@@ -7,6 +7,7 @@ import { sessionMiddleware } from "./lib/session";
 import { seedDatabase } from "./lib/seed";
 
 const app: Express = express();
+app.disable("etag");
 
 app.use(
   pinoHttp({

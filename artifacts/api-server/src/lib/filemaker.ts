@@ -224,7 +224,7 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
     // Project link field in this layout is 'Pid' (confirmed via FM Data API debug)
     const records = await findRecords(config, token, layout, [{ Pid: projectId }], 200);
     // Fetch layout metadata for both layouts to compare available fields
-    for (const layoutName of ["LIST_Cutlist", "T12_List_Cutlist"]) {
+    for (const layoutName of ["LIST_Cutlist", "T12_LIST_Cutlist"]) {
       try {
         const metaUrl = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/layouts/${encodeURIComponent(layoutName)}`;
         const metaRes = await sslFetch(config.allowSelfSigned, metaUrl, {

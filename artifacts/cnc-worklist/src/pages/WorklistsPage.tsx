@@ -7,19 +7,14 @@ import {
   useDeleteWorklist,
   useCreateWorklist,
   useAddWorklistItem,
-  useListProjects,
-  useListCutlists,
   useListMaterials,
   useListStockbook,
+  getCutlist,
   getListWorklistsQueryKey,
-  getListProjectsQueryKey,
-  getListCutlistsQueryKey,
   getListMaterialsQueryKey,
   getListStockbookQueryKey,
 } from "@workspace/api-client-react";
 import type {
-  Project,
-  Cutlist,
   WorklistSummary,
   Material,
   StockbookItem,
@@ -52,7 +47,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Step = "project" | "cutlists" | "machine" | "materials";
+type Step = "cutlists" | "machine" | "materials";
 
 interface DraftMaterialRow {
   rowId: string;
@@ -65,20 +60,31 @@ interface DraftMaterialRow {
   notes: string;
 }
 
+interface CutlistEntry {
+  cutlistId: string;
+  item: string;
+  memo: string;
+  createdBy: string;
+  projectId: string;
+  projectName: string;
+}
+
 interface CreateState {
   step: Step;
-  projectSearch: string;
-  selectedProject: Project | null;
-  selectedCutlistIds: Set<string>;
+  cutlistInput: string;
+  cutlistEntries: CutlistEntry[];
+  resolvedProjectId: string;
+  resolvedProjectName: string;
   machineType: "B" | "C";
   materialRows: DraftMaterialRow[];
 }
 
 const DEFAULT_STATE: CreateState = {
-  step: "project",
-  projectSearch: "",
-  selectedProject: null,
-  selectedCutlistIds: new Set(),
+  step: "cutlists",
+  cutlistInput: "",
+  cutlistEntries: [],
+  resolvedProjectId: "",
+  resolvedProjectName: "",
   machineType: "B",
   materialRows: [],
 };
@@ -96,7 +102,7 @@ const EMPTY_ROW = (): DraftMaterialRow => ({
 
 // ─── Step components ──────────────────────────────────────────────────────────
 
-function ProjectStep({
+function CutlistStep({
   state,
   setState,
   onNext,
@@ -105,114 +111,121 @@ function ProjectStep({
   setState: (s: CreateState) => void;
   onNext: () => void;
 }) {
-  const params = state.projectSearch ? { search: state.projectSearch } : undefined;
-  const { data: projects, isLoading, isError } = useListProjects(params, {
-    query: { queryKey: getListProjectsQueryKey(params), retry: false, staleTime: 10_000 },
-  });
-  const fmUnavailable = isError && !projects;
+  const [isLooking, setIsLooking] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
+  async function addCutlist() {
+    const id = state.cutlistInput.trim();
+    if (!id) return;
+    if (state.cutlistEntries.some((e) => e.cutlistId === id)) {
+      setState({ ...state, cutlistInput: "" });
+      return;
+    }
+    setIsLooking(true);
+    setLookupError(null);
+    try {
+      const cutlist = await getCutlist(id);
+      const entry: CutlistEntry = {
+        cutlistId: String(cutlist.cutlistId ?? cutlist.id ?? id),
+        item: (cutlist.item as string) ?? "",
+        memo: (cutlist.memo as string) ?? "",
+        createdBy: (cutlist.createdBy as string) ?? "",
+        projectId: (cutlist.projectId as string) ?? "",
+        projectName: (cutlist.projectName as string) ?? "",
+      };
+      const entries = [...state.cutlistEntries, entry];
+      setState({
+        ...state,
+        cutlistInput: "",
+        cutlistEntries: entries,
+        resolvedProjectId: state.resolvedProjectId || entry.projectId,
+        resolvedProjectName: state.resolvedProjectName || entry.projectName,
+      });
+    } catch {
+      setLookupError(`Cutlist "${id}" not found in FileMaker.`);
+    } finally {
+      setIsLooking(false);
+    }
+  }
+
+  function removeCutlist(cutlistId: string) {
+    const entries = state.cutlistEntries.filter((e) => e.cutlistId !== cutlistId);
+    setState({
+      ...state,
+      cutlistEntries: entries,
+      resolvedProjectId: entries[0]?.projectId ?? "",
+      resolvedProjectName: entries[0]?.projectName ?? "",
+    });
+  }
 
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <Label className="text-zinc-700">Search FileMaker Projects</Label>
-        <Input
-          value={state.projectSearch}
-          onChange={(e) =>
-            setState({ ...state, projectSearch: e.target.value, selectedProject: null })
-          }
-          placeholder="Project number or address…"
-          autoFocus
-          className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
-        />
+        <Label className="text-zinc-700">Enter Cutlist Number</Label>
+        <div className="flex gap-2">
+          <Input
+            value={state.cutlistInput}
+            onChange={(e) => {
+              setState({ ...state, cutlistInput: e.target.value });
+              setLookupError(null);
+            }}
+            onKeyDown={(e) => { if (e.key === "Enter") addCutlist(); }}
+            placeholder="e.g. 298282"
+            autoFocus
+            className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
+          />
+          <Button
+            onClick={addCutlist}
+            disabled={!state.cutlistInput.trim() || isLooking}
+            className="bg-blue-600 hover:bg-blue-700 flex-shrink-0"
+          >
+            {isLooking ? "…" : "Add"}
+          </Button>
+        </div>
       </div>
 
-      {fmUnavailable ? (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-          <p className="font-medium">FileMaker unavailable</p>
-          <p className="text-amber-700 text-xs mt-1">Enter project details manually below.</p>
+      {lookupError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+          {lookupError}
         </div>
-      ) : isLoading ? (
-        <div className="text-zinc-400 text-sm text-center py-4 animate-pulse">Searching projects…</div>
-      ) : (
-        <div className="max-h-52 overflow-y-auto border border-zinc-200 rounded-lg divide-y divide-zinc-100">
-          {(projects ?? []).length === 0 ? (
-            <div className="text-zinc-400 text-sm text-center py-6">
-              {state.projectSearch ? "No matching projects." : "Type to search projects."}
-            </div>
-          ) : (
-            (projects ?? []).map((p) => (
-              <button
-                key={p.projectId}
-                onClick={() => setState({ ...state, selectedProject: p })}
-                className={`w-full text-left px-4 py-2.5 hover:bg-zinc-50 transition-colors ${
-                  state.selectedProject?.projectId === p.projectId
-                    ? "bg-blue-50 border-l-2 border-blue-500"
-                    : ""
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-blue-600 font-bold">{p.projectId as string}</span>
-                  {p.status && (
-                    <span className="text-xs text-zinc-500 capitalize">{p.status as string}</span>
-                  )}
-                </div>
-                <p className="text-zinc-800 text-sm truncate">{(p.projectName ?? p.address) as string}</p>
-              </button>
-            ))
+      )}
+
+      {state.resolvedProjectId && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm">
+          <p className="text-blue-500 text-xs font-medium uppercase tracking-wide">Project (auto-detected)</p>
+          <p className="font-mono font-bold text-blue-900">{state.resolvedProjectId}</p>
+          {state.resolvedProjectName && (
+            <p className="text-blue-700 text-xs truncate">{state.resolvedProjectName}</p>
           )}
         </div>
       )}
 
-      {fmUnavailable && (
-        <div className="space-y-3 pt-1">
-          <div className="space-y-1.5">
-            <Label className="text-zinc-700">Project Number</Label>
-            <Input
-              value={state.selectedProject?.projectNumber ?? ""}
-              onChange={(e) =>
-                setState({
-                  ...state,
-                  selectedProject: {
-                    projectId: state.selectedProject?.projectId ?? "",
-                    projectNumber: e.target.value,
-                    address: state.selectedProject?.address ?? "",
-                  },
-                })
-              }
-              placeholder="e.g. 1234"
-              className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
-            />
+      {state.cutlistEntries.length > 0 && (
+        <div className="border border-zinc-200 rounded-lg overflow-hidden">
+          <div className="bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-500 uppercase tracking-wide">
+            {state.cutlistEntries.length} cutlist{state.cutlistEntries.length !== 1 ? "s" : ""} added
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-zinc-700">Project Address</Label>
-            <Input
-              value={state.selectedProject?.address ?? ""}
-              onChange={(e) =>
-                setState({
-                  ...state,
-                  selectedProject: {
-                    projectId: state.selectedProject?.projectId ?? "",
-                    projectNumber: state.selectedProject?.projectNumber ?? "",
-                    address: e.target.value,
-                  },
-                })
-              }
-              placeholder="e.g. 123 Smith Street, Suburb"
-              className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
-            />
+          <div className="divide-y divide-zinc-100 max-h-52 overflow-y-auto">
+            {state.cutlistEntries.map((entry) => (
+              <div key={entry.cutlistId} className="flex items-center gap-2 px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-mono font-medium text-zinc-900 text-sm">{entry.cutlistId}</p>
+                  {entry.item && <p className="text-zinc-600 text-xs truncate">{entry.item}</p>}
+                  {entry.memo && <p className="text-zinc-400 text-xs truncate">{entry.memo}</p>}
+                  {entry.createdBy && <p className="text-zinc-400 text-xs">{entry.createdBy}</p>}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeCutlist(entry.cutlistId)}
+                  className="text-zinc-300 hover:text-red-500 flex-shrink-0"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
           </div>
-        </div>
-      )}
-
-      {state.selectedProject && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 flex items-center gap-2 text-sm">
-          <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          <span className="text-blue-800 truncate">
-            <span className="font-mono font-bold mr-1">{state.selectedProject.projectNumber}</span>
-            {state.selectedProject.address}
-          </span>
         </div>
       )}
 
@@ -220,139 +233,8 @@ function ProjectStep({
         <Button
           className="bg-blue-600 hover:bg-blue-700"
           onClick={onNext}
-          disabled={!state.selectedProject}
+          disabled={state.cutlistEntries.length === 0}
         >
-          Next: Cutlists
-          <svg className="w-4 h-4 ml-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function CutlistStep({
-  state,
-  setState,
-  onBack,
-  onNext,
-}: {
-  state: CreateState;
-  setState: (s: CreateState) => void;
-  onBack: () => void;
-  onNext: () => void;
-}) {
-  const projectId = state.selectedProject?.projectId ?? "";
-  const cutlistParams = projectId ? { projectId } : undefined;
-  const { data: cutlists, isLoading, isError } = useListCutlists(cutlistParams, {
-    query: { queryKey: getListCutlistsQueryKey(cutlistParams), retry: false, staleTime: 10_000 },
-  });
-
-  function toggleCutlist(cutlistId: string) {
-    const next = new Set(state.selectedCutlistIds);
-    if (next.has(cutlistId)) next.delete(cutlistId);
-    else next.add(cutlistId);
-    setState({ ...state, selectedCutlistIds: next });
-  }
-
-  const allSelected =
-    (cutlists ?? []).length > 0 &&
-    (cutlists ?? []).every((c) => state.selectedCutlistIds.has(c.cutlistId));
-
-  function toggleAll() {
-    if (allSelected) {
-      setState({ ...state, selectedCutlistIds: new Set() });
-    } else {
-      setState({
-        ...state,
-        selectedCutlistIds: new Set((cutlists ?? []).map((c) => c.cutlistId)),
-      });
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="bg-zinc-50 rounded-lg px-3 py-2 text-sm text-zinc-600">
-        Project:{" "}
-        <span className="font-mono font-bold text-zinc-950">
-          {state.selectedProject?.projectNumber}
-        </span>{" "}
-        <span className="text-zinc-500">{state.selectedProject?.address}</span>
-      </div>
-
-      <Label className="text-zinc-700 block">Select Cutlists</Label>
-
-      {isError ? (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-          FileMaker unavailable — no cutlists to select. Continue without selecting cutlists.
-        </div>
-      ) : isLoading ? (
-        <div className="text-zinc-400 text-sm text-center py-6 animate-pulse">Loading cutlists…</div>
-      ) : (cutlists ?? []).length === 0 ? (
-        <div className="text-zinc-400 text-sm text-center py-6 border border-zinc-200 rounded-lg">
-          No cutlists found for this project.
-        </div>
-      ) : (
-        <div className="border border-zinc-200 rounded-lg overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-2.5 bg-zinc-50 border-b border-zinc-200">
-            <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={toggleAll}
-              className="w-4 h-4 accent-blue-600"
-              id="select-all-cutlists"
-            />
-            <label
-              htmlFor="select-all-cutlists"
-              className="text-zinc-600 text-xs font-medium cursor-pointer"
-            >
-              Select all ({(cutlists ?? []).length})
-            </label>
-            {state.selectedCutlistIds.size > 0 && (
-              <span className="ml-auto text-blue-600 text-xs font-medium">
-                {state.selectedCutlistIds.size} selected
-              </span>
-            )}
-          </div>
-          <div className="max-h-44 overflow-y-auto divide-y divide-zinc-100">
-            {(cutlists ?? []).map((c: Cutlist) => (
-              <label
-                key={c.cutlistId}
-                className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-zinc-50"
-              >
-                <input
-                  type="checkbox"
-                  checked={state.selectedCutlistIds.has(c.cutlistId)}
-                  onChange={() => toggleCutlist(c.cutlistId)}
-                  className="w-4 h-4 accent-blue-600 flex-shrink-0"
-                />
-                <div className="min-w-0">
-                  <p className="text-zinc-900 text-sm font-mono font-medium">{c.cutlistId ?? c.id}</p>
-                  {c.item && (
-                    <p className="text-zinc-700 text-xs truncate">{c.item as string}</p>
-                  )}
-                  {c.memo && (
-                    <p className="text-zinc-500 text-xs truncate">{c.memo as string}</p>
-                  )}
-                  {c.createdBy && (
-                    <p className="text-zinc-400 text-xs truncate">{c.createdBy as string}</p>
-                  )}
-                </div>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="flex justify-between pt-1">
-        <Button variant="ghost" onClick={onBack} className="text-zinc-500">
-          <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700" onClick={onNext}>
           Next: Machine Type
           <svg className="w-4 h-4 ml-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -380,20 +262,20 @@ function MachineStep({
         <div className="flex items-center gap-2">
           <span className="text-zinc-500">Project:</span>
           <span className="font-mono font-bold text-zinc-950">
-            {state.selectedProject?.projectNumber}
+            {state.resolvedProjectId}
           </span>
-          <span className="text-zinc-600 truncate">{state.selectedProject?.address}</span>
+          <span className="text-zinc-600 truncate">{state.resolvedProjectName}</span>
         </div>
-        {state.selectedCutlistIds.size > 0 && (
+        {state.cutlistEntries.length > 0 && (
           <div className="flex items-start gap-2">
             <span className="text-zinc-500 flex-shrink-0">Cutlists:</span>
             <div className="flex flex-wrap gap-1">
-              {[...state.selectedCutlistIds].map((id) => (
+              {state.cutlistEntries.map((e) => (
                 <span
-                  key={id}
+                  key={e.cutlistId}
                   className="bg-blue-100 text-blue-800 border border-blue-200 rounded text-xs px-1.5 py-0.5 font-mono"
                 >
-                  {id}
+                  {e.cutlistId}
                 </span>
               ))}
             </div>
@@ -504,7 +386,7 @@ function MaterialsStep({
         <span>
           Project:{" "}
           <span className="font-mono font-semibold text-zinc-800">
-            {state.selectedProject?.projectNumber}
+            {state.resolvedProjectId}
           </span>
         </span>
         <span>
@@ -513,8 +395,8 @@ function MaterialsStep({
             Rover {state.machineType}
           </span>
         </span>
-        {state.selectedCutlistIds.size > 0 && (
-          <span>Cutlists: {state.selectedCutlistIds.size} selected</span>
+        {state.cutlistEntries.length > 0 && (
+          <span>Cutlists: {state.cutlistEntries.length}</span>
         )}
       </div>
 
@@ -692,13 +574,12 @@ function MaterialsStep({
 // ─── Step config ──────────────────────────────────────────────────────────────
 
 const STEP_LABELS: Record<Step, string> = {
-  project: "1. Project",
-  cutlists: "2. Cutlists",
-  machine: "3. Machine",
-  materials: "4. Materials",
+  cutlists: "1. Cutlists",
+  machine: "2. Machine",
+  materials: "3. Materials",
 };
 
-const STEPS: Step[] = ["project", "cutlists", "machine", "materials"];
+const STEPS: Step[] = ["cutlists", "machine", "materials"];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -766,14 +647,13 @@ export default function WorklistsPage() {
   }
 
   function handleSubmit() {
-    const { selectedProject, selectedCutlistIds, machineType } = createState;
-    if (!selectedProject) return;
+    const { resolvedProjectId, resolvedProjectName, cutlistEntries, machineType } = createState;
     createMutation.mutate({
       data: {
-        projectId: selectedProject.projectId,
-        projectNumber: selectedProject.projectNumber,
-        projectAddress: selectedProject.address,
-        cutlistRefs: [...selectedCutlistIds],
+        projectId: resolvedProjectId || undefined,
+        projectNumber: resolvedProjectId || undefined,
+        projectAddress: resolvedProjectName || undefined,
+        cutlistRefs: cutlistEntries.map((e) => e.cutlistId),
         machineType,
       },
     });
@@ -966,18 +846,10 @@ export default function WorklistsPage() {
             ))}
           </div>
 
-          {createState.step === "project" && (
-            <ProjectStep
-              state={createState}
-              setState={setCreateState}
-              onNext={() => setCreateState({ ...createState, step: "cutlists" })}
-            />
-          )}
           {createState.step === "cutlists" && (
             <CutlistStep
               state={createState}
               setState={setCreateState}
-              onBack={() => setCreateState({ ...createState, step: "project" })}
               onNext={() => setCreateState({ ...createState, step: "machine" })}
             />
           )}

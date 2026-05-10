@@ -222,18 +222,6 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
   return withToken(async (config, token) => {
     const layout = "T12_LIST_Cutlist";
     const records = await findRecords(config, token, layout, [{ Pid: projectId }], 200);
-    // Debug: check total record count by fetching first record with no filter
-    try {
-      const base = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/layouts/${encodeURIComponent(layout)}/records?_limit=1`;
-      const r0 = await sslFetch(config.allowSelfSigned, base, { headers: { Authorization: `Bearer ${token}` } });
-      const j0 = await r0.json() as { response?: { dataInfo?: { totalRecordCount: number; foundCount: number } } };
-      console.log("[T12 DEBUG] Total records in layout:", JSON.stringify(j0.response?.dataInfo));
-      if ((j0.response?.dataInfo?.totalRecordCount ?? 0) > 0) {
-        const firstRec = await sslFetch(config.allowSelfSigned, `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/layouts/${encodeURIComponent(layout)}/records?_limit=1`, { headers: { Authorization: `Bearer ${token}` } });
-        const jr = await firstRec.json() as { response?: { data?: Array<{ fieldData: Record<string,unknown> }> } };
-        console.log("[T12 DEBUG] First record fieldData:", JSON.stringify(jr.response?.data?.[0]?.fieldData));
-      }
-    } catch(e) { console.log("[T12 DEBUG] error:", e); }
     return records.map((r) => {
       const num = String(r.fieldData["CutlistNumber"] ?? "");
       return {
@@ -255,8 +243,11 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
 
 export async function findCutlistById(cutlistId: string): Promise<Record<string, unknown> | null> {
   return withToken(async (config, token) => {
-    const layout = "T12_LIST_Cutlist";
-    const records = await findRecords(config, token, layout, [{ CutlistNumber: cutlistId }], 1);
+    // Try the rich layout first; fall back to the original if no records found
+    let records = await findRecords(config, token, "T12_LIST_Cutlist", [{ CutlistNumber: cutlistId }], 1);
+    if (!records.length) {
+      records = await findRecords(config, token, "LIST_Cutlist", [{ CutlistNumber: cutlistId }], 1);
+    }
     if (!records.length) return null;
     const r = records[0];
     const num = String(r.fieldData["CutlistNumber"] ?? "");

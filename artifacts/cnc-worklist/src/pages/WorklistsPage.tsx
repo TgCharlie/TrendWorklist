@@ -329,15 +329,14 @@ function CutlistStep({
                 />
                 <div className="min-w-0">
                   <p className="text-zinc-900 text-sm font-mono font-medium">{c.cutlistId ?? c.id}</p>
-                  {((c.item as string) || (c["Item"] as string)) && (
-                    <p className="text-zinc-600 text-xs truncate">
-                      {(c.item as string) || (c["Item"] as string)}
-                    </p>
+                  {c.item && (
+                    <p className="text-zinc-700 text-xs truncate">{c.item as string}</p>
                   )}
-                  {((c.createdBy as string) || (c["CreatedBy"] as string)) && (
-                    <p className="text-zinc-400 text-xs truncate">
-                      {(c.createdBy as string) || (c["CreatedBy"] as string)}
-                    </p>
+                  {c.memo && (
+                    <p className="text-zinc-500 text-xs truncate">{c.memo as string}</p>
+                  )}
+                  {c.createdBy && (
+                    <p className="text-zinc-400 text-xs truncate">{c.createdBy as string}</p>
                   )}
                 </div>
               </label>

@@ -12,10 +12,6 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
   }
   try {
     const cutlists = await findCutlistsByProject(projectId);
-    if (cutlists.length > 0) {
-      console.log("[CUTLIST DEBUG] First cutlist keys:", JSON.stringify(Object.keys(cutlists[0])));
-      console.log("[CUTLIST DEBUG] First cutlist item value:", JSON.stringify((cutlists[0] as Record<string,unknown>).item));
-    }
     res.json(cutlists);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

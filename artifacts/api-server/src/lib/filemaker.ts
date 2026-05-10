@@ -217,53 +217,23 @@ export async function findProjectById(projectId: string): Promise<Record<string,
   });
 }
 
-// Cutlists layout: LIST_Cutlist — key fields: CutlistNumber, PID, Description, Status
+// Cutlists layout: T12_LIST_Cutlist — full field access including Item, MEMO, CreatedBy
 export async function findCutlistsByProject(projectId: string): Promise<Array<Record<string, unknown>>> {
   return withToken(async (config, token) => {
-    const layout = "LIST_Cutlist";
-    // Project link field in this layout is 'Pid' (confirmed via FM Data API debug)
+    const layout = "T12_LIST_Cutlist";
     const records = await findRecords(config, token, layout, [{ Pid: projectId }], 200);
-    // Fetch layout metadata for both layouts to compare available fields
-    for (const layoutName of ["LIST_Cutlist", "T12_LIST_Cutlist"]) {
-      try {
-        const metaUrl = `${config.serverUrl}/fmi/data/vLatest/databases/${encodeURIComponent(config.database)}/layouts/${encodeURIComponent(layoutName)}`;
-        const metaRes = await sslFetch(config.allowSelfSigned, metaUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const metaJson = await metaRes.json() as { response?: { fieldMetaData?: Array<{ name: string }> }; messages?: Array<{ code: string; message: string }> };
-        if (metaJson.response?.fieldMetaData) {
-          const fieldNames = metaJson.response.fieldMetaData.map((f) => f.name);
-          console.log(`[FM LAYOUT META] Fields on "${layoutName}":`, JSON.stringify(fieldNames));
-        } else {
-          console.log(`[FM LAYOUT META] "${layoutName}" error:`, JSON.stringify(metaJson.messages));
-        }
-      } catch (e) {
-        console.log(`[FM LAYOUT META] Error fetching "${layoutName}":`, e);
-      }
-    }
-    if (records.length > 0) {
-      console.log("[FM RAW] Full fieldData record 0:", JSON.stringify(records[0].fieldData));
-      console.log("[FM RAW] portalData keys:", JSON.stringify(Object.keys(records[0].portalData ?? {})));
-    }
     return records.map((r) => {
       const num = String(r.fieldData["CutlistNumber"] ?? "");
-      // Item may be in fieldData (as a direct related field) or in portalData (as a portal row).
-      // Check fieldData first under both possible key names, then fall back to first portal row.
-      const itemFromField = (r.fieldData["TRACK_MAIN::Item"] ?? r.fieldData["TRAK_MAIN::Item"] ?? r.fieldData["Item"] ?? "") as string;
-      const portalKeys = Object.keys(r.portalData ?? {});
-      const itemFromPortal = portalKeys.length > 0
-        ? String((r.portalData[portalKeys[0]]?.[0]?.["TRACK_MAIN::Item"] ?? r.portalData[portalKeys[0]]?.[0]?.["TRAK_MAIN::Item"] ?? r.portalData[portalKeys[0]]?.[0]?.["Item"] ?? ""))
-        : "";
-      const item = itemFromField || itemFromPortal;
       return {
         id: num,
         cutlistId: num,
         cutlistNumber: num,
         recordId: r.recordId,
         projectId: String(r.fieldData["Pid"] ?? ""),
-        item,
+        item: (r.fieldData["Item"] ?? "") as string,
+        memo: (r.fieldData["MEMO"] ?? "") as string,
         createdBy: (r.fieldData["CreatedBy"] ?? "") as string,
-        description: (r.fieldData["Description"] ?? "") as string,
+        projectName: (r.fieldData["ProjectName"] ?? "") as string,
         status: (r.fieldData["Status"] ?? "") as string,
         ...r.fieldData,
       };
@@ -273,7 +243,7 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
 
 export async function findCutlistById(cutlistId: string): Promise<Record<string, unknown> | null> {
   return withToken(async (config, token) => {
-    const layout = "LIST_Cutlist";
+    const layout = "T12_LIST_Cutlist";
     const records = await findRecords(config, token, layout, [{ CutlistNumber: cutlistId }], 1);
     if (!records.length) return null;
     const r = records[0];
@@ -283,10 +253,12 @@ export async function findCutlistById(cutlistId: string): Promise<Record<string,
       cutlistId: num,
       cutlistNumber: num,
       recordId: r.recordId,
-      projectId: String(r.fieldData["PID"] ?? ""),
-      item: r.fieldData["Item"] as string,
-      description: r.fieldData["Description"] as string,
-      status: r.fieldData["Status"] as string,
+      projectId: String(r.fieldData["Pid"] ?? ""),
+      item: (r.fieldData["Item"] ?? "") as string,
+      memo: (r.fieldData["MEMO"] ?? "") as string,
+      createdBy: (r.fieldData["CreatedBy"] ?? "") as string,
+      projectName: (r.fieldData["ProjectName"] ?? "") as string,
+      status: (r.fieldData["Status"] ?? "") as string,
       ...r.fieldData,
     };
   });

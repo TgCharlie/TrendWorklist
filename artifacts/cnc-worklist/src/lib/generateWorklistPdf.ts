@@ -86,8 +86,8 @@ export function printWorklistPdf(data: WorklistPdfData) {
     }
 
     @page {
-      size: A4 landscape;
-      margin: 20mm 18mm;
+      size: A4 portrait;
+      margin: 18mm 16mm;
     }
 
     @media print {

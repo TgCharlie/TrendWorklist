@@ -571,11 +571,11 @@ export default function MaterialsPage() {
                   <Input
                     data-testid="input-material-length"
                     value={form.length}
-                    onChange={(e) => !dimLocked && setForm((f) => ({ ...f, length: e.target.value }))}
+                onChange={(e) => !editItem && !dimLocked && setForm((f) => ({ ...f, length: e.target.value }))}
                     readOnly={dimLocked}
                     placeholder="2400"
                     type="number"
-                    className={dimLocked
+                className={editItem || dimLocked
                       ? "bg-zinc-50 border-zinc-200 text-zinc-400 cursor-not-allowed"
                       : "bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"}
                   />
@@ -585,11 +585,11 @@ export default function MaterialsPage() {
                   <Input
                     data-testid="input-material-width"
                     value={form.width}
-                    onChange={(e) => !dimLocked && setForm((f) => ({ ...f, width: e.target.value }))}
+                onChange={(e) => !editItem && !dimLocked && setForm((f) => ({ ...f, width: e.target.value }))}
                     readOnly={dimLocked}
                     placeholder="1200"
                     type="number"
-                    className={dimLocked
+                className={editItem || dimLocked
                       ? "bg-zinc-50 border-zinc-200 text-zinc-400 cursor-not-allowed"
                       : "bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"}
                   />
@@ -599,11 +599,11 @@ export default function MaterialsPage() {
                   <Input
                     data-testid="input-material-thickness"
                     value={form.thickness}
-                    onChange={(e) => !dimLocked && setForm((f) => ({ ...f, thickness: e.target.value }))}
+                onChange={(e) => !editItem && !dimLocked && setForm((f) => ({ ...f, thickness: e.target.value }))}
                     readOnly={dimLocked}
                     placeholder="18"
                     type="number"
-                    className={dimLocked
+                className={editItem || dimLocked
                       ? "bg-zinc-50 border-zinc-200 text-zinc-400 cursor-not-allowed"
                       : "bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"}
                   />

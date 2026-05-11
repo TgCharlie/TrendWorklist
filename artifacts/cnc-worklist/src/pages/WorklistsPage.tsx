@@ -10,9 +10,11 @@ import {
   useListMaterials,
   useListStockbook,
   getCutlist,
+  useGetCutlist,
   getListWorklistsQueryKey,
   getListMaterialsQueryKey,
   getListStockbookQueryKey,
+  getGetCutlistQueryKey,
 } from "@workspace/api-client-react";
 import type {
   WorklistSummary,
@@ -45,6 +47,15 @@ const STATUS_COLORS: Record<string, string> = {
   active: "bg-blue-50 text-blue-700 border border-blue-200",
   complete: "bg-green-50 text-green-700 border border-green-200",
 };
+
+function CutlistItemLabel({ cutlistRef }: { cutlistRef: string }) {
+  const { data } = useGetCutlist(cutlistRef, {
+    query: { queryKey: getGetCutlistQueryKey(cutlistRef), staleTime: 300_000 },
+  });
+  const item = data?.item as string | undefined;
+  if (!item) return null;
+  return <span className="text-zinc-700 font-semibold text-xs">{item}</span>;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -737,6 +748,9 @@ export default function WorklistsPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-3 mt-0.5 text-xs text-zinc-500">
+                    {(w as any).cutlistRefs?.[0] && (
+                      <CutlistItemLabel cutlistRef={(w as any).cutlistRefs[0]} />
+                    )}
                     {w.projectNumber && (
                       <span className="font-mono font-semibold text-zinc-700">{w.projectNumber}</span>
                     )}

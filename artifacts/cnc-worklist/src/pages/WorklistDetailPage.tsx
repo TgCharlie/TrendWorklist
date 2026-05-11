@@ -642,7 +642,21 @@ export default function WorklistDetailPage() {
                 {folders.map((folder, i) => (
                   <tr
                     key={folder.id}
-                    className={`border-t border-zinc-200 ${i % 2 === 0 ? "bg-white" : "bg-zinc-50"}`}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/worklists/${numId}/folders/${folder.id}/open`, {
+                          method: "POST",
+                          credentials: "include",
+                        });
+                        if (!res.ok) {
+                          const data = await res.json().catch(() => ({}));
+                          toast({ title: "Could not open folder", description: data.error ?? "Unknown error", variant: "destructive" });
+                        }
+                      } catch {
+                        toast({ title: "Could not open folder", description: "Network error", variant: "destructive" });
+                      }
+                    }}
+                    className={`border-t border-zinc-200 cursor-pointer transition-colors ${i % 2 === 0 ? "bg-white hover:bg-amber-50" : "bg-zinc-50 hover:bg-amber-50"}`}
                   >
                     <td className="px-4 py-2.5">
                       <span className="inline-flex items-center gap-1.5">

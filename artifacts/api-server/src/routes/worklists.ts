@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { exec } from "child_process";
 import fs from "fs";
 import path from "path";
 import {
@@ -373,6 +374,51 @@ router.post("/:id/folders", requireAuth, async (req, res): Promise<void> => {
     const message = err instanceof Error ? err.message : "Failed to create folder";
     res.status(500).json({ error: message });
   }
+});
+
+router.post("/:id/folders/:folderId/open", requireAuth, async (req, res): Promise<void> => {
+  const worklistId = Number(req.params.id);
+  const folderId = Number(req.params.folderId);
+
+  const [folder] = await db
+    .select()
+    .from(worklistFoldersTable)
+    .where(eq(worklistFoldersTable.id, folderId))
+    .limit(1);
+
+  if (!folder || folder.worklistId !== worklistId) {
+    res.status(404).json({ error: "Folder not found" });
+    return;
+  }
+
+  const folderBasePath = await getSetting("folder_base_path");
+  if (!folderBasePath || !folderBasePath.trim()) {
+    res.status(400).json({ error: "Folder base path is not configured." });
+    return;
+  }
+
+  const folderPath = path.join(folderBasePath.trim(), folder.folderReference);
+
+  if (!fs.existsSync(folderPath)) {
+    res.status(404).json({ error: `Folder path does not exist on disk: ${folderPath}` });
+    return;
+  }
+
+  const platform = process.platform;
+  const cmd =
+    platform === "win32"
+      ? `explorer "${folderPath}"`
+      : platform === "darwin"
+        ? `open "${folderPath}"`
+        : `xdg-open "${folderPath}"`;
+
+  exec(cmd, (err) => {
+    if (err) {
+      res.status(500).json({ error: `Could not open folder: ${err.message}` });
+    } else {
+      res.json({ opened: folderPath });
+    }
+  });
 });
 
 router.get("/:id/csv", requireAuth, async (req, res): Promise<void> => {

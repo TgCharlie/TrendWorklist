@@ -13,13 +13,15 @@ import {
   useDeleteWorklist,
   useUpdateWorklist,
   useListStockbook,
+  useGetStockLevel,
   getGetWorklistQueryKey,
   getGetCutlistQueryKey,
   getListWorklistsQueryKey,
   getListMaterialsQueryKey,
   getListStockbookQueryKey,
+  getGetStockLevelQueryKey,
 } from "@workspace/api-client-react";
-import type { WorklistStatus, StockbookItem } from "@workspace/api-client-react";
+import type { WorklistStatus, StockbookItem, WorklistItem } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -77,6 +79,7 @@ export default function WorklistDetailPage() {
   const [isEditLooking, setIsEditLooking] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteValue, setEditingNoteValue] = useState("");
+  const [selectedMaterialItem, setSelectedMaterialItem] = useState<WorklistItem | null>(null);
   const [, navigate] = useLocation();
 
   const { data: worklist, isLoading } = useGetWorklist(numId, {
@@ -468,7 +471,15 @@ export default function WorklistDetailPage() {
                     key={item.id}
                     className={`border-t border-zinc-200 ${i % 2 === 0 ? "bg-white" : "bg-zinc-50"}`}
                   >
-                    <td className="px-4 py-2.5 font-mono text-blue-600 text-xs">{item.pcode}</td>
+                    <td className="px-4 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMaterialItem(item)}
+                        className="font-mono text-blue-600 text-xs hover:underline hover:text-blue-800"
+                      >
+                        {item.pcode}
+                      </button>
+                    </td>
                     <td className="px-4 py-2.5 text-zinc-800">{item.displayName}</td>
                     <td className="px-4 py-2.5 text-zinc-800 text-right">{item.quantity}</td>
                     <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
@@ -796,6 +807,119 @@ export default function WorklistDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Material Info Dialog */}
+      {selectedMaterialItem && (
+        <MaterialInfoDialog
+          item={selectedMaterialItem}
+          onClose={() => setSelectedMaterialItem(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function MaterialInfoDialog({
+  item,
+  onClose,
+}: {
+  item: WorklistItem;
+  onClose: () => void;
+}) {
+  const pcode = item.pcode ?? "";
+  const { data: stock, isLoading } = useGetStockLevel(pcode, {
+    query: {
+      queryKey: getGetStockLevelQueryKey(pcode),
+      enabled: !!pcode,
+      staleTime: 60_000,
+    },
+  });
+
+  const qtyOnHand = stock?.qtyOnHand ?? null;
+  const stockColor =
+    qtyOnHand === null
+      ? "text-zinc-400"
+      : qtyOnHand <= 0
+      ? "text-red-600"
+      : qtyOnHand < 5
+      ? "text-amber-600"
+      : "text-green-700";
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="bg-white border-zinc-200 max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-zinc-950 font-mono text-base">{pcode}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          {/* Description */}
+          <div>
+            <p className="text-zinc-800 text-sm font-medium">{item.displayName}</p>
+          </div>
+
+          {/* Dimensions */}
+          {(item.length || item.width || item.thickness) && (
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Length", value: item.length, unit: "mm" },
+                { label: "Width", value: item.width, unit: "mm" },
+                { label: "Thickness", value: item.thickness, unit: "mm" },
+              ].map(({ label, value, unit }) => (
+                <div key={label} className="bg-zinc-50 rounded-lg px-3 py-2 text-center">
+                  <p className="text-zinc-400 text-xs mb-0.5">{label}</p>
+                  <p className="text-zinc-900 text-sm font-mono font-semibold">
+                    {value ?? "—"}
+                    {value && <span className="text-zinc-400 text-xs font-normal ml-0.5">{unit}</span>}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Stock */}
+          <div className="border border-zinc-200 rounded-lg divide-y divide-zinc-100">
+            <div className="flex items-center justify-between px-4 py-2.5">
+              <span className="text-zinc-500 text-sm">Stock on hand</span>
+              {isLoading ? (
+                <span className="text-zinc-400 text-sm italic">Loading…</span>
+              ) : qtyOnHand !== null ? (
+                <span className={`font-semibold text-sm ${stockColor}`}>
+                  {qtyOnHand} {stock?.unit ?? ""}
+                </span>
+              ) : (
+                <span className="text-zinc-400 text-sm italic">Not in stockbook</span>
+              )}
+            </div>
+            {stock?.location && (
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-zinc-500 text-sm">Location</span>
+                <span className="text-zinc-800 text-sm font-mono">{stock.location}</span>
+              </div>
+            )}
+            {stock?.otype && (
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-zinc-500 text-sm">Type</span>
+                <span className="text-zinc-800 text-sm">{stock.otype}</span>
+              </div>
+            )}
+            {stock?.cost != null && (
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-zinc-500 text-sm">Cost</span>
+                <span className="text-zinc-800 text-sm font-mono">
+                  ${Number(stock.cost).toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} className="text-zinc-500">
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

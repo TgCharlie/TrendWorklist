@@ -499,9 +499,12 @@ export default function MaterialsPage() {
               <Input
                 data-testid="input-material-pcode"
                 value={form.pcode}
-                onChange={(e) => setForm((f) => ({ ...f, pcode: e.target.value.toUpperCase() }))}
+                onChange={(e) => !editItem && setForm((f) => ({ ...f, pcode: e.target.value.toUpperCase() }))}
+                readOnly={!!editItem}
                 placeholder="e.g. MDF18-2400"
-                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono"
+                className={editItem
+                  ? "bg-zinc-50 border-zinc-200 text-zinc-500 cursor-not-allowed font-mono select-text"
+                  : "bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono"}
               />
             </div>
 

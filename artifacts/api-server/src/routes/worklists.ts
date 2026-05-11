@@ -346,28 +346,13 @@ router.post("/:id/folders", requireAuth, async (req, res): Promise<void> => {
       const reference = `${worklist.machineType}${String(folderRow.lastNumber).padStart(4, "0")}`;
       const folderPath = path.join(folderBasePath.trim(), reference);
 
-      try {
-        fs.mkdirSync(folderBasePath.trim(), { recursive: true });
-      } catch (fsErr) {
-        throw new Error(
-          `Could not access base path "${folderBasePath.trim()}": ${fsErr instanceof Error ? fsErr.message : String(fsErr)}`,
-        );
-      }
-
       if (fs.existsSync(folderPath)) {
         throw new Error(
           `Folder "${reference}" already exists at "${folderPath}". This may indicate a sequence reset — contact an administrator.`,
         );
       }
-      try {
-        fs.mkdirSync(folderPath);
-      } catch (fsErr) {
-        throw new Error(
-          `Could not create folder "${folderPath}" on the server: ${fsErr instanceof Error ? fsErr.message : String(fsErr)}`,
-        );
-      }
 
-      return tx
+      const [inserted] = await tx
         .insert(worklistFoldersTable)
         .values({
           worklistId,
@@ -375,9 +360,20 @@ router.post("/:id/folders", requireAuth, async (req, res): Promise<void> => {
           createdBy: req.session.userId ?? null,
         })
         .returning();
+
+      return [inserted, folderPath] as const;
     });
 
-    res.status(201).json(folder);
+    const [inserted, folderPath] = folder;
+    let diskWarning: string | undefined;
+    try {
+      fs.mkdirSync(folderBasePath.trim(), { recursive: true });
+      fs.mkdirSync(folderPath as string);
+    } catch (fsErr) {
+      diskWarning = fsErr instanceof Error ? fsErr.message : String(fsErr);
+    }
+
+    res.status(201).json({ ...inserted, diskWarning });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to create folder";
     res.status(500).json({ error: message });

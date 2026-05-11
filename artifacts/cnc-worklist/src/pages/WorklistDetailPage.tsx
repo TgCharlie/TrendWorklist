@@ -218,13 +218,20 @@ export default function WorklistDetailPage() {
 
   const addFolderMutation = useMutation({
     mutationFn: () =>
-      apiFetch<WorklistFolder>(`/worklists/${numId}/folders`, { method: "POST" }),
+      apiFetch<WorklistFolder & { diskWarning?: string }>(`/worklists/${numId}/folders`, { method: "POST" }),
     onSuccess: (newFolder) => {
       queryClient.setQueryData<WorklistFolder[]>(foldersQueryKey, (prev = []) => [
         ...prev,
         newFolder,
       ]);
-      toast({ title: `Folder ${newFolder.folderReference} created` });
+      if (newFolder.diskWarning) {
+        toast({
+          title: `${newFolder.folderReference} reserved — folder not created on disk`,
+          description: "The server could not reach the base path. The folder will be created on disk when using the desktop app.",
+        });
+      } else {
+        toast({ title: `Folder ${newFolder.folderReference} created` });
+      }
     },
     onError: (err: Error) => {
       toast({ title: "Failed to create folder", description: err.message, variant: "destructive" });

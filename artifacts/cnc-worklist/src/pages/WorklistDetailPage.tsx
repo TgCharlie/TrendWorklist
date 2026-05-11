@@ -8,6 +8,7 @@ import {
   getCutlist,
   useListMaterials,
   useAddWorklistItem,
+  useUpdateWorklistItem,
   useDeleteWorklistItem,
   useDeleteWorklist,
   useUpdateWorklist,
@@ -74,6 +75,8 @@ export default function WorklistDetailPage() {
   const [cutlistEditInput, setCutlistEditInput] = useState("");
   const [cutlistEditError, setCutlistEditError] = useState<string | null>(null);
   const [isEditLooking, setIsEditLooking] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [editingNoteValue, setEditingNoteValue] = useState("");
   const [, navigate] = useLocation();
 
   const { data: worklist, isLoading } = useGetWorklist(numId, {
@@ -133,6 +136,27 @@ export default function WorklistDetailPage() {
       },
     },
   });
+
+  const updateItemNoteMutation = useUpdateWorklistItem({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetWorklistQueryKey(numId) });
+        setEditingNoteId(null);
+      },
+      onError: () => {
+        toast({ title: "Failed to save note", variant: "destructive" });
+      },
+    },
+  });
+
+  function startEditNote(itemId: number, current: string | null | undefined) {
+    setEditingNoteId(itemId);
+    setEditingNoteValue(current ?? "");
+  }
+
+  function commitNote(itemId: number) {
+    updateItemNoteMutation.mutate({ id: numId, itemId, data: { notes: editingNoteValue || null } });
+  }
 
   const deleteWorklistMutation = useDeleteWorklist({
     mutation: {
@@ -449,7 +473,35 @@ export default function WorklistDetailPage() {
                     <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
                       {item.width ?? "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-500 text-xs">{item.notes}</td>
+                    <td className="px-2 py-1.5">
+                      {editingNoteId === item.id ? (
+                        <input
+                          autoFocus
+                          value={editingNoteValue}
+                          onChange={(e) => setEditingNoteValue(e.target.value)}
+                          onBlur={() => commitNote(item.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") { e.currentTarget.blur(); }
+                            if (e.key === "Escape") { setEditingNoteId(null); }
+                          }}
+                          className="w-full text-xs text-zinc-800 bg-white border border-blue-400 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-400 placeholder:text-zinc-400"
+                          placeholder="Add a note…"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startEditNote(item.id, item.notes)}
+                          className="w-full text-left text-xs px-2 py-1 rounded hover:bg-zinc-100 transition-colors min-h-[28px]"
+                          title="Click to add/edit note"
+                        >
+                          {item.notes ? (
+                            <span className="text-zinc-600">{item.notes}</span>
+                          ) : (
+                            <span className="text-zinc-300 italic">Add note…</span>
+                          )}
+                        </button>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5">
                       <button
                         type="button"

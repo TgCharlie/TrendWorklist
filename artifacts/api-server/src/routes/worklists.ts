@@ -346,6 +346,14 @@ router.post("/:id/folders", requireAuth, async (req, res): Promise<void> => {
       const reference = `${worklist.machineType}${String(folderRow.lastNumber).padStart(4, "0")}`;
       const folderPath = path.join(folderBasePath.trim(), reference);
 
+      try {
+        fs.mkdirSync(folderBasePath.trim(), { recursive: true });
+      } catch (fsErr) {
+        throw new Error(
+          `Could not access base path "${folderBasePath.trim()}": ${fsErr instanceof Error ? fsErr.message : String(fsErr)}`,
+        );
+      }
+
       if (fs.existsSync(folderPath)) {
         throw new Error(
           `Folder "${reference}" already exists at "${folderPath}". This may indicate a sequence reset — contact an administrator.`,

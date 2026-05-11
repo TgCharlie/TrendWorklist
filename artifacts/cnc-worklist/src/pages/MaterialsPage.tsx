@@ -375,7 +375,15 @@ export default function MaterialsPage() {
                   data-testid={`row-material-${m.id}`}
                   className={`border-t border-zinc-200 ${i % 2 === 0 ? "bg-white" : "bg-zinc-50"}`}
                 >
-                  <td className="px-4 py-2.5 font-mono text-blue-600 text-xs font-bold">{m.pcode}</td>
+                  <td className="px-4 py-2.5">
+                    <button
+                      onClick={() => openEdit(m)}
+                      className="font-mono text-blue-600 text-xs font-bold hover:underline underline-offset-2 cursor-pointer transition-colors hover:text-blue-800"
+                      title="Edit material"
+                    >
+                      {m.pcode}
+                    </button>
+                  </td>
                   <td className="px-4 py-2.5 text-zinc-800">{m.displayName}</td>
                   <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.length ?? "—"}</td>
                   <td className="px-4 py-2.5 text-zinc-500 text-right font-mono text-xs">{m.width ?? "—"}</td>
@@ -398,15 +406,6 @@ export default function MaterialsPage() {
                       </button>
                       {isAdmin && (
                         <>
-                          <button
-                            data-testid={`button-edit-material-${m.id}`}
-                            onClick={() => openEdit(m)}
-                            className="text-zinc-500 hover:text-zinc-950 transition-colors"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
                           <button
                             data-testid={`button-delete-material-${m.id}`}
                             onClick={() => setDeletePending(m)}

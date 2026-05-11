@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   Dialog,
   DialogContent,
@@ -589,6 +590,7 @@ export default function WorklistsPage() {
   const [, navigate] = useLocation();
   const [showCreate, setShowCreate] = useState(false);
   const [createState, setCreateState] = useState<CreateState>({ ...DEFAULT_STATE });
+  const [deletePending, setDeletePending] = useState<{ id: number; worklistNumber: string } | null>(null);
 
   const { data: worklists = [], isLoading } = useListWorklists(undefined, {
     query: { queryKey: getListWorklistsQueryKey() },
@@ -771,6 +773,17 @@ export default function WorklistsPage() {
                       </svg>
                     </Button>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-zinc-400 hover:text-red-600"
+                    title="Delete worklist"
+                    onClick={() => setDeletePending({ id: w.id, worklistNumber: w.worklistNumber })}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </Button>
                   <Link href={`/worklists/${w.id}`}>
                     <Button
                       variant="ghost"
@@ -798,6 +811,19 @@ export default function WorklistsPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deletePending}
+        title="Delete Worklist"
+        message={deletePending ? `Permanently delete ${deletePending.worklistNumber}? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={() => {
+          if (deletePending) deleteMutation.mutate({ id: deletePending.id });
+          setDeletePending(null);
+        }}
+        onCancel={() => setDeletePending(null)}
+      />
 
       {/* Create Worklist Dialog */}
       <Dialog

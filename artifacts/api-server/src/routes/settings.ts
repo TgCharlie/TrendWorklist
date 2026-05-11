@@ -1,4 +1,5 @@
 import { Router } from "express";
+import fs from "fs";
 import { requireAdmin } from "../lib/auth-middleware";
 import { getAllSettings, setSettings } from "../lib/settings";
 import { db, worklistSequenceTable, worklistsTable, folderSequencesTable } from "@workspace/db";
@@ -35,6 +36,50 @@ router.get("/", requireAdmin, async (req, res): Promise<void> => {
   res.json(sanitizeSettings(settings));
 });
 
+router.get("/validate-folder-path", requireAdmin, async (req, res): Promise<void> => {
+  const p = typeof req.query.path === "string" ? req.query.path.trim() : "";
+  if (!p) {
+    res.json({ valid: false, reason: "No path provided" });
+    return;
+  }
+  try {
+    const exists = fs.existsSync(p);
+    if (!exists) {
+      res.json({ valid: false, reason: "Path does not exist on the server" });
+      return;
+    }
+    const stat = fs.statSync(p);
+    if (!stat.isDirectory()) {
+      res.json({ valid: false, reason: "Path exists but is not a directory" });
+      return;
+    }
+    res.json({ valid: true });
+  } catch (err) {
+    res.json({ valid: false, reason: err instanceof Error ? err.message : "Unknown error" });
+  }
+});
+
+router.get("/next-folder-numbers", requireAdmin, async (req, res): Promise<void> => {
+  const settings = await getAllSettings();
+  const result: Record<string, { nextNumber: number; formatted: string; foldersExist: boolean }> = {};
+  for (const machineType of ["B", "C"] as const) {
+    const [seqRow] = await db
+      .select()
+      .from(folderSequencesTable)
+      .where(eq(folderSequencesTable.machineType, machineType))
+      .limit(1);
+    const startNumber = parseInt(settings[`folder_start_number_${machineType}`] || "1", 10) || 1;
+    const lastNumber = seqRow?.lastNumber ?? 0;
+    const nextNumber = lastNumber > 0 ? lastNumber + 1 : startNumber;
+    result[machineType] = {
+      nextNumber,
+      formatted: `${machineType}${String(nextNumber).padStart(4, "0")}`,
+      foldersExist: lastNumber > 0,
+    };
+  }
+  res.json(result);
+});
+
 router.get("/next-worklist-number", requireAdmin, async (req, res): Promise<void> => {
   const seqRows = await db.select().from(worklistSequenceTable).limit(1);
   const settings = await getAllSettings();
@@ -52,6 +97,7 @@ router.get("/next-worklist-number", requireAdmin, async (req, res): Promise<void
 router.put("/", requireAdmin, async (req, res): Promise<void> => {
   const body = req.body as Record<string, string | number | boolean>;
   const forceOverride = body.force_override === true;
+  const forceOverrideFolders = body.force_override_folders === true || forceOverride;
   const updates: Record<string, string> = {};
 
   for (const key of ALLOWED_KEYS) {
@@ -102,7 +148,7 @@ router.put("/", requireAdmin, async (req, res): Promise<void> => {
 
       const foldersExist = seqRow ? seqRow.lastNumber > 0 : false;
 
-      if (!foldersExist || forceOverride) {
+      if (!foldersExist || forceOverrideFolders) {
         if (seqRow) {
           await db
             .update(folderSequencesTable)

@@ -211,6 +211,8 @@ export default function MaterialsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [selectedStockbookItem, setSelectedStockbookItem] = useState<StockbookItem | null>(null);
   const [deletePending, setDeletePending] = useState<Material | null>(null);
+  const [editStockDescription, setEditStockDescription] = useState<string | null>(null);
+  const [editStockDescriptionLoading, setEditStockDescriptionLoading] = useState(false);
 
   const { data: materials = [], isLoading } = useQuery<Material[]>({
     queryKey: ["materials", search],
@@ -271,9 +273,10 @@ export default function MaterialsPage() {
 
   const isAdmin = user?.role === "admin";
 
-  function openEdit(m: Material) {
+  async function openEdit(m: Material) {
     setEditItem(m);
     setSelectedStockbookItem(null);
+    setEditStockDescription(null);
     setForm({
       pcode: m.pcode,
       displayName: m.displayName,
@@ -282,6 +285,20 @@ export default function MaterialsPage() {
       thickness: m.thickness != null ? String(m.thickness) : "",
       notes: m.notes ?? "",
     });
+    setEditStockDescriptionLoading(true);
+    try {
+      const data = await apiFetch<{ items: StockbookItem[] }>(
+        `/stockbook?search=${encodeURIComponent(m.pcode)}`
+      );
+      const match = (data.items ?? []).find(
+        (i) => i.pcode.toUpperCase() === m.pcode.toUpperCase()
+      );
+      setEditStockDescription(match?.description ?? null);
+    } catch {
+      setEditStockDescription(null);
+    } finally {
+      setEditStockDescriptionLoading(false);
+    }
   }
 
   function handleStockbookSelect(item: StockbookItem) {
@@ -310,6 +327,7 @@ export default function MaterialsPage() {
     setShowCreate(false);
     setEditItem(null);
     setSelectedStockbookItem(null);
+    setEditStockDescription(null);
   }
 
   const dimLocked = selectedStockbookItem !== null;
@@ -487,8 +505,10 @@ export default function MaterialsPage() {
               />
             </div>
 
-            {/* Stockbook full description — read-only reference, shown when from stockbook */}
-            {selectedStockbookItem && (
+            {/* Stockbook full description — read-only reference */}
+            {/* In create mode: shown when a stockbook item is selected */}
+            {/* In edit mode: shown when fetched from stockbook by pcode */}
+            {(selectedStockbookItem || editItem) && (
               <div className="space-y-1.5">
                 <Label className="text-zinc-500 flex items-center gap-1.5">
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -496,29 +516,35 @@ export default function MaterialsPage() {
                   </svg>
                   Stockbook Description
                 </Label>
-                <Input
-                  value={selectedStockbookItem.description}
-                  readOnly
-                  className="bg-zinc-50 border-zinc-200 text-zinc-500 cursor-not-allowed select-text"
-                />
+                {editItem && editStockDescriptionLoading ? (
+                  <div className="h-9 bg-zinc-50 border border-zinc-200 rounded-md flex items-center px-3">
+                    <span className="text-xs text-zinc-400 animate-pulse">Loading from stockbook…</span>
+                  </div>
+                ) : editItem && !editStockDescription ? (
+                  <div className="h-9 bg-zinc-50 border border-zinc-200 rounded-md flex items-center px-3">
+                    <span className="text-xs text-zinc-400 italic">Not found in stockbook</span>
+                  </div>
+                ) : (
+                  <Input
+                    value={editItem ? (editStockDescription ?? "") : (selectedStockbookItem?.description ?? "")}
+                    readOnly
+                    className="bg-zinc-50 border-zinc-200 text-zinc-500 cursor-not-allowed select-text"
+                  />
+                )}
               </div>
             )}
 
-            {/* Abbreviated description / display name */}
+            {/* CNC description / display name — always editable */}
             <div className="space-y-1.5">
-              <Label className="text-zinc-700">
-                {selectedStockbookItem ? "Abbreviated Description" : "Description"}
-              </Label>
-              {selectedStockbookItem && (
-                <p className="text-xs text-zinc-400 -mt-0.5">
-                  Short label shown on the worklist — type your own concise name.
-                </p>
-              )}
+              <Label className="text-zinc-700">CNC Description</Label>
+              <p className="text-xs text-zinc-400 -mt-0.5">
+                Short label shown on the worklist.
+              </p>
               <Input
                 data-testid="input-material-description"
                 value={form.displayName}
                 onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
-                placeholder={selectedStockbookItem ? "e.g. 18mm White Matt PB" : "e.g. 18mm MDF Sheet 2400x1200"}
+                placeholder="e.g. 18mm White Matt PB"
                 className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>

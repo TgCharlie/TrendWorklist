@@ -231,6 +231,8 @@ export default function WorklistDetailPage() {
         materialId: mat.id,
         pcode: mat.pcode,
         displayName: mat.displayName,
+        length: mat.length != null ? String(mat.length) : f.length,
+        width: mat.width != null ? String(mat.width) : f.width,
       }));
       setStockSearch(mat.pcode);
     }

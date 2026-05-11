@@ -52,6 +52,17 @@ function createTables(): void {
       notes TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS worklist_folders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      worklist_id INTEGER NOT NULL REFERENCES worklists(id) ON DELETE CASCADE,
+      folder_reference TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      created_by INTEGER
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_worklist_folders_worklist_id
+      ON worklist_folders (worklist_id);
+
     CREATE TABLE IF NOT EXISTS folder_sequences (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       machine_type TEXT NOT NULL UNIQUE,

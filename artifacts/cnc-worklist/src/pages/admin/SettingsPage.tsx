@@ -251,7 +251,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <p className="text-zinc-500 text-xs -mt-2">
-              Folder start numbers only take effect when "Force reset sequence counter" is enabled above.
+              Folder start numbers apply automatically before any folders have been created for that machine. Once folders exist, changing the start number requires "Force reset sequence counter" above.
             </p>
           </div>
         </Card>

@@ -88,6 +88,20 @@ export const selectWorklistItemSchema = createSelectSchema(worklistItemsTable);
 export type InsertWorklistItem = z.infer<typeof insertWorklistItemSchema>;
 export type WorklistItem = typeof worklistItemsTable.$inferSelect;
 
+export const worklistFoldersTable = sqliteTable("worklist_folders", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  worklistId: integer("worklist_id")
+    .notNull()
+    .references(() => worklistsTable.id, { onDelete: "cascade" }),
+  folderReference: text("folder_reference").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  createdBy: integer("created_by"),
+});
+
+export type WorklistFolder = typeof worklistFoldersTable.$inferSelect;
+
 export const folderSequencesTable = sqliteTable("folder_sequences", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   machineType: text("machine_type").notNull().unique(),

@@ -1,12 +1,15 @@
 import { Router } from "express";
+import fs from "fs";
+import path from "path";
 import {
   db,
   worklistsTable,
   worklistItemsTable,
   worklistSequenceTable,
   folderSequencesTable,
+  worklistFoldersTable,
 } from "@workspace/db";
-import { eq, desc, sql, count } from "drizzle-orm";
+import { eq, desc, sql, count, asc } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
 import { getSetting } from "../lib/settings";
 
@@ -284,6 +287,73 @@ router.delete("/:id/items/:itemId", requireAuth, async (req, res): Promise<void>
     return;
   }
   res.status(204).end();
+});
+
+router.get("/:id/folders", requireAuth, async (req, res): Promise<void> => {
+  const worklistId = Number(req.params.id);
+  const folders = await db
+    .select()
+    .from(worklistFoldersTable)
+    .where(eq(worklistFoldersTable.worklistId, worklistId))
+    .orderBy(asc(worklistFoldersTable.createdAt));
+  res.json(folders);
+});
+
+router.post("/:id/folders", requireAuth, async (req, res): Promise<void> => {
+  const worklistId = Number(req.params.id);
+
+  const [worklist] = await db
+    .select()
+    .from(worklistsTable)
+    .where(eq(worklistsTable.id, worklistId))
+    .limit(1);
+
+  if (!worklist) {
+    res.status(404).json({ error: "Worklist not found" });
+    return;
+  }
+
+  const folderBasePath = await getSetting("folder_base_path");
+  if (!folderBasePath || !folderBasePath.trim()) {
+    res.status(400).json({
+      error: "Folder base path is not configured. Please set it in Admin Portal > Settings.",
+    });
+    return;
+  }
+
+  const [folder] = await db.transaction(async (tx) => {
+    const [folderRow] = await tx
+      .update(folderSequencesTable)
+      .set({ lastNumber: sql`${folderSequencesTable.lastNumber} + 1` })
+      .where(eq(folderSequencesTable.machineType, worklist.machineType))
+      .returning({ lastNumber: folderSequencesTable.lastNumber });
+
+    if (!folderRow) {
+      throw new Error(`Folder sequence row missing for machine ${worklist.machineType}`);
+    }
+
+    const reference = `${worklist.machineType}${String(folderRow.lastNumber).padStart(4, "0")}`;
+    const folderPath = path.join(folderBasePath.trim(), reference);
+
+    try {
+      fs.mkdirSync(folderPath, { recursive: true });
+    } catch (err) {
+      throw new Error(
+        `Failed to create folder "${folderPath}": ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    return tx
+      .insert(worklistFoldersTable)
+      .values({
+        worklistId,
+        folderReference: reference,
+        createdBy: req.session.userId ?? null,
+      })
+      .returning();
+  });
+
+  res.status(201).json(folder);
 });
 
 router.get("/:id/csv", requireAuth, async (req, res): Promise<void> => {

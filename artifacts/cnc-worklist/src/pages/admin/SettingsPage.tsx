@@ -14,7 +14,10 @@ interface Settings {
   filemaker_password: string;
   filemaker_allow_self_signed: string;
   csv_server_path: string;
+  folder_base_path: string;
   worklist_start_number: string;
+  folder_start_number_B: string;
+  folder_start_number_C: string;
 }
 
 export default function SettingsPage() {
@@ -26,7 +29,10 @@ export default function SettingsPage() {
     filemaker_password: "",
     filemaker_allow_self_signed: "false",
     csv_server_path: "",
+    folder_base_path: "",
     worklist_start_number: "1",
+    folder_start_number_B: "1",
+    folder_start_number_C: "1",
   });
   const [showFmPassword, setShowFmPassword] = useState(false);
   const [forceOverride, setForceOverride] = useState(false);
@@ -210,6 +216,43 @@ export default function SettingsPage() {
                 Windows UNC path where CSV files are saved on the local server (for reference).
               </p>
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-zinc-700">Folder Base Path</Label>
+              <Input
+                value={form.folder_base_path}
+                onChange={(e) => setForm((f) => ({ ...f, folder_base_path: e.target.value }))}
+                placeholder="\\server\share\cnc-folders"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono text-sm"
+              />
+              <p className="text-zinc-500 text-xs">
+                Root directory where CNC job folders (e.g. B0042) will be created on the server.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-zinc-700">Folder Start Number — Rover B</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.folder_start_number_B}
+                  onChange={(e) => setForm((f) => ({ ...f, folder_start_number_B: e.target.value }))}
+                  className="bg-white border-zinc-300 text-zinc-950 max-w-40"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-zinc-700">Folder Start Number — Rover C</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.folder_start_number_C}
+                  onChange={(e) => setForm((f) => ({ ...f, folder_start_number_C: e.target.value }))}
+                  className="bg-white border-zinc-300 text-zinc-950 max-w-40"
+                />
+              </div>
+            </div>
+            <p className="text-zinc-500 text-xs -mt-2">
+              Folder start numbers only take effect when "Force reset sequence counter" is enabled above.
+            </p>
           </div>
         </Card>
 

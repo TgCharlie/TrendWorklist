@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAdmin } from "../lib/auth-middleware";
 import { getAllSettings, setSettings } from "../lib/settings";
-import { db, worklistSequenceTable, worklistsTable } from "@workspace/db";
+import { db, worklistSequenceTable, worklistsTable, folderSequencesTable } from "@workspace/db";
 import { count, eq } from "drizzle-orm";
 
 const router = Router();
@@ -13,7 +13,10 @@ const ALLOWED_KEYS = [
   "filemaker_password",
   "filemaker_allow_self_signed",
   "csv_server_path",
+  "folder_base_path",
   "worklist_start_number",
+  "folder_start_number_B",
+  "folder_start_number_C",
 ];
 
 function sanitizeSettings(settings: Record<string, string>): Record<string, string> {
@@ -78,6 +81,30 @@ router.put("/", requireAdmin, async (req, res): Promise<void> => {
     } else {
       // Worklists exist and no force_override — ignore the start number change
       delete updates.worklist_start_number;
+    }
+  }
+
+  // Handle per-machine folder start numbers (only applied when forceOverride is set)
+  for (const machineType of ["B", "C"] as const) {
+    const key = `folder_start_number_${machineType}` as const;
+    if (updates[key] !== undefined) {
+      const startNumber = Math.max(1, parseInt(updates[key], 10) || 1);
+      if (forceOverride) {
+        const [seqRow] = await db
+          .select()
+          .from(folderSequencesTable)
+          .where(eq(folderSequencesTable.machineType, machineType))
+          .limit(1);
+        if (seqRow) {
+          await db
+            .update(folderSequencesTable)
+            .set({ lastNumber: startNumber - 1 })
+            .where(eq(folderSequencesTable.machineType, machineType));
+        }
+        updates[key] = String(startNumber);
+      } else {
+        delete updates[key];
+      }
     }
   }
 

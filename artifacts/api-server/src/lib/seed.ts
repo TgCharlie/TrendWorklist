@@ -24,6 +24,19 @@ async function ensureStockbookColumns(): Promise<void> {
   `);
 }
 
+async function ensureWorklistFoldersTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS worklist_folders (
+      id SERIAL PRIMARY KEY,
+      worklist_id INTEGER NOT NULL REFERENCES worklists(id) ON DELETE CASCADE,
+      folder_reference TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_by INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_worklist_folders_worklist_id ON worklist_folders (worklist_id);
+  `);
+}
+
 async function ensureMaterialsColumnsReal(): Promise<void> {
   // length/width/thickness were originally INTEGER but need to support
   // decimal values (e.g. 0.7mm edge banding). Safely widen to REAL.
@@ -39,6 +52,7 @@ export async function seedDatabase(): Promise<void> {
   await ensureSessionsTable();
   await ensureStockbookColumns();
   await ensureMaterialsColumnsReal();
+  await ensureWorklistFoldersTable();
 
   const [{ count: userCount }] = await db
     .select({ count: count() })

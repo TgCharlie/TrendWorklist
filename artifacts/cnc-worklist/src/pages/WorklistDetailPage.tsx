@@ -2,7 +2,8 @@ import { useState } from "react";
 import { downloadCsv } from "@/lib/electron-bridge";
 import { printWorklistPdf } from "@/lib/generateWorklistPdf";
 import { useParams, Link, useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
+import { apiFetch } from "@/hooks/useApi";
 import {
   useGetWorklist,
   useGetCutlist,
@@ -62,6 +63,14 @@ const EMPTY_ITEM = {
   notes: "" as string,
   materialId: null as number | null,
 };
+
+interface WorklistFolder {
+  id: number;
+  worklistId: number;
+  folderReference: string;
+  createdAt: string;
+  createdBy: number | null;
+}
 
 export default function WorklistDetailPage() {
   const { id } = useParams();
@@ -197,6 +206,28 @@ export default function WorklistDetailPage() {
           variant: "destructive",
         });
       },
+    },
+  });
+
+  const foldersQueryKey = ["worklist-folders", numId];
+  const { data: folders = [] } = useQuery<WorklistFolder[]>({
+    queryKey: foldersQueryKey,
+    queryFn: () => apiFetch<WorklistFolder[]>(`/worklists/${numId}/folders`),
+    enabled: !!numId,
+  });
+
+  const addFolderMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<WorklistFolder>(`/worklists/${numId}/folders`, { method: "POST" }),
+    onSuccess: (newFolder) => {
+      queryClient.setQueryData<WorklistFolder[]>(foldersQueryKey, (prev = []) => [
+        ...prev,
+        newFolder,
+      ]);
+      toast({ title: `Folder ${newFolder.folderReference} created` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to create folder", description: err.message, variant: "destructive" });
     },
   });
 
@@ -459,16 +490,31 @@ export default function WorklistDetailPage() {
         <h2 className="text-zinc-950 font-semibold">
           Items <span className="text-zinc-500 font-normal text-sm">({items.length})</span>
         </h2>
-        <Button
-          size="sm"
-          className="bg-blue-600 hover:bg-blue-700"
-          onClick={() => setShowAddItem(true)}
-        >
-          <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Item
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-zinc-300 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100"
+            onClick={() => addFolderMutation.mutate()}
+            disabled={addFolderMutation.isPending}
+            title="Create a new sequential folder on the server for this worklist"
+          >
+            <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+            </svg>
+            {addFolderMutation.isPending ? "Creating…" : "Add Folder"}
+          </Button>
+          <Button
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700"
+            onClick={() => setShowAddItem(true)}
+          >
+            <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Item
+          </Button>
+        </div>
       </div>
 
       {items.length === 0 ? (
@@ -569,6 +615,59 @@ export default function WorklistDetailPage() {
           </table>
         </div>
       )}
+
+      {/* Folders section */}
+      <div className="mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-zinc-950 font-semibold">
+            Folders <span className="text-zinc-500 font-normal text-sm">({folders.length})</span>
+          </h2>
+        </div>
+        {folders.length === 0 ? (
+          <Card className="bg-white border-zinc-200 p-6 text-center">
+            <p className="text-zinc-500 text-sm">
+              No folders yet. Click "Add Folder" to create the next sequential folder on the server.
+            </p>
+          </Card>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-zinc-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-zinc-50">
+                  <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Folder Reference</th>
+                  <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {folders.map((folder, i) => (
+                  <tr
+                    key={folder.id}
+                    className={`border-t border-zinc-200 ${i % 2 === 0 ? "bg-white" : "bg-zinc-50"}`}
+                  >
+                    <td className="px-4 py-2.5">
+                      <span className="inline-flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                        </svg>
+                        <span className="font-mono font-semibold text-zinc-900">{folder.folderReference}</span>
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-500 text-xs">
+                      {new Date(folder.createdAt).toLocaleString("en-AU", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       <ConfirmDialog
         open={!!deletePending}

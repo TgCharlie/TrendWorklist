@@ -291,6 +291,15 @@ router.delete("/:id/items/:itemId", requireAuth, async (req, res): Promise<void>
 
 router.get("/:id/folders", requireAuth, async (req, res): Promise<void> => {
   const worklistId = Number(req.params.id);
+  const [worklist] = await db
+    .select({ id: worklistsTable.id })
+    .from(worklistsTable)
+    .where(eq(worklistsTable.id, worklistId))
+    .limit(1);
+  if (!worklist) {
+    res.status(404).json({ error: "Worklist not found" });
+    return;
+  }
   const folders = await db
     .select()
     .from(worklistFoldersTable)
@@ -336,8 +345,13 @@ router.post("/:id/folders", requireAuth, async (req, res): Promise<void> => {
       const reference = `${worklist.machineType}${String(folderRow.lastNumber).padStart(4, "0")}`;
       const folderPath = path.join(folderBasePath.trim(), reference);
 
+      if (fs.existsSync(folderPath)) {
+        throw new Error(
+          `Folder "${reference}" already exists at "${folderPath}". This may indicate a sequence reset — contact an administrator.`,
+        );
+      }
       try {
-        fs.mkdirSync(folderPath, { recursive: true });
+        fs.mkdirSync(folderPath);
       } catch (fsErr) {
         throw new Error(
           `Could not create folder "${folderPath}" on the server: ${fsErr instanceof Error ? fsErr.message : String(fsErr)}`,

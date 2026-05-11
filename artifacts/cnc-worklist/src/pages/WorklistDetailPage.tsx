@@ -275,12 +275,14 @@ export default function WorklistDetailPage() {
           {cutlistRefs.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
               <span className="text-zinc-400 text-xs">Cutlists:</span>
-              {cutlistRefs.map((ref) => (
-                <span
-                  key={ref}
-                  className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-800 font-mono text-xs"
-                >
-                  {ref}
+              {cutlistRefs.map((ref, i) => (
+                <span key={ref} className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-800 font-mono text-xs">
+                    {ref}
+                  </span>
+                  {i === 0 && cutlistItem && (
+                    <span className="text-zinc-700 text-xs font-medium">{cutlistItem}</span>
+                  )}
                 </span>
               ))}
             </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { downloadCsv } from "@/lib/electron-bridge";
+import { printWorklistPdf } from "@/lib/generateWorklistPdf";
 import { useParams, Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -400,6 +401,31 @@ export default function WorklistDetailPage() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-zinc-300 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100"
+            onClick={() =>
+              printWorklistPdf({
+                worklistNumber: worklist.worklistNumber,
+                folderNumber: worklist.folderNumber,
+                machineType: worklist.machineType,
+                status: worklist.status,
+                projectId: worklist.projectId,
+                projectAddress: worklist.projectAddress,
+                createdAt: worklist.createdAt,
+                cutlistRefs,
+                cutlistItem,
+                items,
+              })
+            }
+            title="Print / Save PDF"
+          >
+            <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Print PDF
+          </Button>
           {worklist.status === "complete" && (
             <Button
               variant="outline"

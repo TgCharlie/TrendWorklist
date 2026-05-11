@@ -600,13 +600,25 @@ export default function WorklistDetailPage() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-zinc-700">Quantity</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={itemForm.quantity}
-                  onChange={(e) => setItemForm((f) => ({ ...f, quantity: Number(e.target.value) }))}
-                  className="bg-white border-zinc-300 text-zinc-950"
-                />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setItemForm((f) => ({ ...f, quantity: Math.max(1, f.quantity - 1) }))}
+                    className="w-9 h-9 flex items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 text-lg font-medium select-none"
+                  >
+                    −
+                  </button>
+                  <span className="w-8 text-center font-mono text-zinc-950 text-sm font-semibold">
+                    {itemForm.quantity}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setItemForm((f) => ({ ...f, quantity: f.quantity + 1 }))}
+                    className="w-9 h-9 flex items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 text-lg font-medium select-none"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
 

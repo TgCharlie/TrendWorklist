@@ -233,6 +233,7 @@ export default function WorklistDetailPage() {
         displayName: mat.displayName,
         length: mat.length != null ? String(mat.length) : f.length,
         width: mat.width != null ? String(mat.width) : f.width,
+        thickness: mat.thickness != null ? String(mat.thickness) : f.thickness,
       }));
       setStockSearch(mat.pcode);
     }
@@ -455,6 +456,7 @@ export default function WorklistDetailPage() {
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">Qty</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">L (mm)</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">W (mm)</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">T (mm)</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Notes</th>
                 <th className="px-4 py-2.5" />
               </tr>
@@ -474,6 +476,9 @@ export default function WorklistDetailPage() {
                     </td>
                     <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
                       {item.width ?? "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
+                      {item.thickness ?? "—"}
                     </td>
                     <td className="px-2 py-1.5">
                       {editingNoteId === item.id ? (

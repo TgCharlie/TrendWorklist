@@ -8,7 +8,10 @@ const DEFAULTS: Record<string, string> = {
   filemaker_password: "",
   filemaker_allow_self_signed: "false",
   csv_server_path: "",
+  folder_base_path: "",
   worklist_start_number: "1",
+  folder_start_number_B: "1",
+  folder_start_number_C: "1",
 };
 
 export async function getSetting(key: string): Promise<string> {

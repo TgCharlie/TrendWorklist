@@ -84,17 +84,25 @@ router.put("/", requireAdmin, async (req, res): Promise<void> => {
     }
   }
 
-  // Handle per-machine folder start numbers (only applied when forceOverride is set)
+  // Handle per-machine folder start numbers — mirrors worklist_start_number semantics:
+  // applied (and sequence reset) when no folders have been issued for that machine OR
+  // force_override is set; ignored (not saved) when folders already exist without force_override.
   for (const machineType of ["B", "C"] as const) {
     const key = `folder_start_number_${machineType}` as const;
     if (updates[key] !== undefined) {
       const startNumber = Math.max(1, parseInt(updates[key], 10) || 1);
-      if (forceOverride) {
-        const [seqRow] = await db
-          .select()
-          .from(folderSequencesTable)
-          .where(eq(folderSequencesTable.machineType, machineType))
-          .limit(1);
+
+      // Use folder_sequences.lastNumber as the canonical indicator of whether folders
+      // have been issued for this machine (lastNumber > 0 means at least one folder created).
+      const [seqRow] = await db
+        .select()
+        .from(folderSequencesTable)
+        .where(eq(folderSequencesTable.machineType, machineType))
+        .limit(1);
+
+      const foldersExist = seqRow ? seqRow.lastNumber > 0 : false;
+
+      if (!foldersExist || forceOverride) {
         if (seqRow) {
           await db
             .update(folderSequencesTable)
@@ -103,6 +111,7 @@ router.put("/", requireAdmin, async (req, res): Promise<void> => {
         }
         updates[key] = String(startNumber);
       } else {
+        // Folders have been issued and no force_override — ignore the start number change
         delete updates[key];
       }
     }

@@ -321,39 +321,44 @@ router.post("/:id/folders", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const [folder] = await db.transaction(async (tx) => {
-    const [folderRow] = await tx
-      .update(folderSequencesTable)
-      .set({ lastNumber: sql`${folderSequencesTable.lastNumber} + 1` })
-      .where(eq(folderSequencesTable.machineType, worklist.machineType))
-      .returning({ lastNumber: folderSequencesTable.lastNumber });
+  try {
+    const [folder] = await db.transaction(async (tx) => {
+      const [folderRow] = await tx
+        .update(folderSequencesTable)
+        .set({ lastNumber: sql`${folderSequencesTable.lastNumber} + 1` })
+        .where(eq(folderSequencesTable.machineType, worklist.machineType))
+        .returning({ lastNumber: folderSequencesTable.lastNumber });
 
-    if (!folderRow) {
-      throw new Error(`Folder sequence row missing for machine ${worklist.machineType}`);
-    }
+      if (!folderRow) {
+        throw new Error(`Folder sequence not initialised for machine ${worklist.machineType} — contact an administrator.`);
+      }
 
-    const reference = `${worklist.machineType}${String(folderRow.lastNumber).padStart(4, "0")}`;
-    const folderPath = path.join(folderBasePath.trim(), reference);
+      const reference = `${worklist.machineType}${String(folderRow.lastNumber).padStart(4, "0")}`;
+      const folderPath = path.join(folderBasePath.trim(), reference);
 
-    try {
-      fs.mkdirSync(folderPath, { recursive: true });
-    } catch (err) {
-      throw new Error(
-        `Failed to create folder "${folderPath}": ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+      try {
+        fs.mkdirSync(folderPath, { recursive: true });
+      } catch (fsErr) {
+        throw new Error(
+          `Could not create folder "${folderPath}" on the server: ${fsErr instanceof Error ? fsErr.message : String(fsErr)}`,
+        );
+      }
 
-    return tx
-      .insert(worklistFoldersTable)
-      .values({
-        worklistId,
-        folderReference: reference,
-        createdBy: req.session.userId ?? null,
-      })
-      .returning();
-  });
+      return tx
+        .insert(worklistFoldersTable)
+        .values({
+          worklistId,
+          folderReference: reference,
+          createdBy: req.session.userId ?? null,
+        })
+        .returning();
+    });
 
-  res.status(201).json(folder);
+    res.status(201).json(folder);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to create folder";
+    res.status(500).json({ error: message });
+  }
 });
 
 router.get("/:id/csv", requireAuth, async (req, res): Promise<void> => {

@@ -332,7 +332,7 @@ router.post("/:id/folders", requireAuth, async (req, res): Promise<void> => {
   }
 
   try {
-    const [folder] = await db.transaction(async (tx) => {
+    const folder = await db.transaction(async (tx) => {
       const [folderRow] = await tx
         .update(folderSequencesTable)
         .set({ lastNumber: sql`${folderSequencesTable.lastNumber} + 1` })

@@ -405,6 +405,12 @@ router.post("/:id/folders/:folderId/open", requireAuth, async (req, res): Promis
   }
 
   const platform = process.platform;
+
+  if (platform === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+    res.json({ opened: false, path: folderPath });
+    return;
+  }
+
   const cmd =
     platform === "win32"
       ? `explorer "${folderPath}"`
@@ -414,9 +420,9 @@ router.post("/:id/folders/:folderId/open", requireAuth, async (req, res): Promis
 
   exec(cmd, (err) => {
     if (err) {
-      res.status(500).json({ error: `Could not open folder: ${err.message}` });
+      res.json({ opened: false, path: folderPath });
     } else {
-      res.json({ opened: folderPath });
+      res.json({ opened: true, path: folderPath });
     }
   });
 });

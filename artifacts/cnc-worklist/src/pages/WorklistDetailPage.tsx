@@ -648,9 +648,11 @@ export default function WorklistDetailPage() {
                           method: "POST",
                           credentials: "include",
                         });
+                        const data = await res.json().catch(() => ({}));
                         if (!res.ok) {
-                          const data = await res.json().catch(() => ({}));
                           toast({ title: "Could not open folder", description: data.error ?? "Unknown error", variant: "destructive" });
+                        } else if (!data.opened) {
+                          toast({ title: `${folder.folderReference}`, description: data.path ?? "Path unavailable" });
                         }
                       } catch {
                         toast({ title: "Could not open folder", description: "Network error", variant: "destructive" });

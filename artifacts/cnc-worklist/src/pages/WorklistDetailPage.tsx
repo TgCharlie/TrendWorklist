@@ -4,12 +4,14 @@ import { useParams, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetWorklist,
+  useGetCutlist,
   useListMaterials,
   useAddWorklistItem,
   useDeleteWorklistItem,
   useUpdateWorklist,
   useListStockbook,
   getGetWorklistQueryKey,
+  getGetCutlistQueryKey,
   getListWorklistsQueryKey,
   getListMaterialsQueryKey,
   getListStockbookQueryKey,
@@ -68,6 +70,16 @@ export default function WorklistDetailPage() {
   const { data: worklist, isLoading } = useGetWorklist(numId, {
     query: { queryKey: getGetWorklistQueryKey(numId), enabled: !!numId },
   });
+
+  const firstCutlistId = worklist?.cutlistRefs?.[0] ?? "";
+  const { data: firstCutlist } = useGetCutlist(firstCutlistId, {
+    query: {
+      queryKey: getGetCutlistQueryKey(firstCutlistId),
+      enabled: !!firstCutlistId,
+      staleTime: 300_000,
+    },
+  });
+  const cutlistItem = firstCutlist?.item as string | undefined;
 
   const { data: materials = [] } = useListMaterials(undefined, {
     query: { queryKey: getListMaterialsQueryKey(), staleTime: 60_000 },
@@ -184,6 +196,11 @@ export default function WorklistDetailPage() {
         </Link>
 
         <div className="flex-1 min-w-0">
+          {/* Cutlist item description — shown prominently above the worklist number */}
+          {cutlistItem && (
+            <p className="text-base font-semibold text-zinc-800 mb-1 leading-snug">{cutlistItem}</p>
+          )}
+
           {/* Title row */}
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-2xl font-bold text-zinc-950 font-mono">{worklist.worklistNumber}</h1>

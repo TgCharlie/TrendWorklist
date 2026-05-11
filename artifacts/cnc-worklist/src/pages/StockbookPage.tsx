@@ -4,6 +4,8 @@ import {
   useListStockbook,
   getListStockbookQueryKey,
   useUpdateStockTracked,
+  useCreateMaterial,
+  getListMaterialsQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 
 interface SyncState {
@@ -106,8 +109,42 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
 
 function StockItemModal({ item, onClose }: { item: StockbookRow | null; onClose: () => void }) {
   const [imgError, setImgError] = useState(false);
+  const [created, setCreated] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  useEffect(() => { setImgError(false); }, [item?.pcode]);
+  useEffect(() => { setImgError(false); setCreated(false); }, [item?.pcode]);
+
+  const createMaterialMutation = useCreateMaterial({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListMaterialsQueryKey() });
+        setCreated(true);
+        toast({ title: "Material created", description: `${item?.pcode} added to the materials library` });
+      },
+      onError: (err) => {
+        toast({
+          title: "Failed to create material",
+          description: (err as Error).message,
+          variant: "destructive",
+        });
+      },
+    },
+  });
+
+  function parseDimensions(desc: string) {
+    const m = desc.match(/(\d+)\s*[×xX]\s*(\d+)\s*[×xX]\s*(\d+)/);
+    if (m) return { length: Number(m[1]), width: Number(m[2]), thickness: Number(m[3]) };
+    return {};
+  }
+
+  function handleCreateMaterial() {
+    if (!item) return;
+    const dims = parseDimensions(item.description || "");
+    createMaterialMutation.mutate({
+      data: { pcode: item.pcode, displayName: item.description || item.pcode, ...dims },
+    });
+  }
 
   const qtyColor =
     !item ? "" :
@@ -183,6 +220,26 @@ function StockItemModal({ item, onClose }: { item: StockbookRow | null; onClose:
             )}
           </div>
         )}
+
+        <DialogFooter className="pt-2 border-t border-zinc-100">
+          {created ? (
+            <span className="text-green-600 text-sm font-medium flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Added to materials library
+            </span>
+          ) : (
+            <Button
+              onClick={handleCreateMaterial}
+              disabled={createMaterialMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+              size="sm"
+            >
+              {createMaterialMutation.isPending ? "Creating…" : "Create Material"}
+            </Button>
+          )}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

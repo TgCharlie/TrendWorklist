@@ -162,7 +162,10 @@ function CutlistStep({
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <Label className="text-zinc-700">Enter Cutlist Number</Label>
+        <div className="flex items-baseline justify-between">
+          <Label className="text-zinc-700">Cutlist Numbers</Label>
+          <span className="text-zinc-400 text-xs">Add one at a time — you can add multiple</span>
+        </div>
         <div className="flex gap-2">
           <Input
             value={state.cutlistInput}

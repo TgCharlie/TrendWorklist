@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetWorklist,
   useGetCutlist,
+  getCutlist,
   useListMaterials,
   useAddWorklistItem,
   useDeleteWorklistItem,
@@ -68,6 +69,11 @@ export default function WorklistDetailPage() {
   const [stockSearch, setStockSearch] = useState<string | undefined>(undefined);
   const [deletePending, setDeletePending] = useState<{ id: number; pcode: string | null } | null>(null);
   const [deleteWorklistPending, setDeleteWorklistPending] = useState(false);
+  const [showEditCutlists, setShowEditCutlists] = useState(false);
+  const [editCutlists, setEditCutlists] = useState<string[]>([]);
+  const [cutlistEditInput, setCutlistEditInput] = useState("");
+  const [cutlistEditError, setCutlistEditError] = useState<string | null>(null);
+  const [isEditLooking, setIsEditLooking] = useState(false);
   const [, navigate] = useLocation();
 
   const { data: worklist, isLoading } = useGetWorklist(numId, {
@@ -147,6 +153,51 @@ export default function WorklistDetailPage() {
       },
     },
   });
+
+  const updateCutlistsMutation = useUpdateWorklist({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetWorklistQueryKey(numId) });
+        queryClient.invalidateQueries({ queryKey: getListWorklistsQueryKey() });
+        setShowEditCutlists(false);
+        toast({ title: "Cutlists updated" });
+      },
+      onError: (err) => {
+        toast({
+          title: "Failed to update cutlists",
+          description: (err as Error).message,
+          variant: "destructive",
+        });
+      },
+    },
+  });
+
+  function openEditCutlists() {
+    setEditCutlists([...(worklist?.cutlistRefs ?? [])]);
+    setCutlistEditInput("");
+    setCutlistEditError(null);
+    setShowEditCutlists(true);
+  }
+
+  async function addEditCutlist() {
+    const val = cutlistEditInput.trim();
+    if (!val) return;
+    if (editCutlists.includes(val)) {
+      setCutlistEditError("That cutlist number is already in this worklist");
+      return;
+    }
+    setIsEditLooking(true);
+    setCutlistEditError(null);
+    try {
+      await getCutlist(val);
+      setEditCutlists((prev) => [...prev, val]);
+      setCutlistEditInput("");
+    } catch {
+      setCutlistEditError(`Cutlist "${val}" not found in FileMaker`);
+    } finally {
+      setIsEditLooking(false);
+    }
+  }
 
   function handleMaterialSelect(materialId: string) {
     const mat = materials.find((m) => String(m.id) === materialId);
@@ -272,21 +323,32 @@ export default function WorklistDetailPage() {
           </div>
 
           {/* Cutlist pills */}
-          {cutlistRefs.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              <span className="text-zinc-400 text-xs">Cutlists:</span>
-              {cutlistRefs.map((ref, i) => (
-                <span key={ref} className="inline-flex items-center gap-1.5">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-800 font-mono text-xs">
-                    {ref}
-                  </span>
-                  {i === 0 && cutlistItem && (
-                    <span className="text-zinc-700 text-xs font-medium">{cutlistItem}</span>
-                  )}
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            <span className="text-zinc-400 text-xs">Cutlists:</span>
+            {cutlistRefs.map((ref, i) => (
+              <span key={ref} className="inline-flex items-center gap-1.5">
+                <span className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-800 font-mono text-xs">
+                  {ref}
                 </span>
-              ))}
-            </div>
-          )}
+                {i === 0 && cutlistItem && (
+                  <span className="text-zinc-700 text-xs font-medium">{cutlistItem}</span>
+                )}
+              </span>
+            ))}
+            {cutlistRefs.length === 0 && (
+              <span className="text-zinc-400 text-xs italic">None</span>
+            )}
+            <button
+              onClick={openEditCutlists}
+              className="inline-flex items-center gap-1 text-zinc-400 hover:text-blue-600 text-xs ml-1"
+              title="Edit cutlists"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
+              </svg>
+              Edit
+            </button>
+          </div>
         </div>
 
         {/* Actions */}
@@ -577,6 +639,88 @@ export default function WorklistDetailPage() {
               disabled={addItemMutation.isPending || !itemForm.pcode}
             >
               {addItemMutation.isPending ? "Adding…" : "Add Item"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Cutlists Dialog */}
+      <Dialog open={showEditCutlists} onOpenChange={setShowEditCutlists}>
+        <DialogContent className="bg-white border-zinc-200 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-950">Edit Cutlists</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            {/* Current cutlist list */}
+            {editCutlists.length > 0 ? (
+              <div className="space-y-1.5">
+                {editCutlists.map((ref) => (
+                  <div
+                    key={ref}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-zinc-50 border border-zinc-200"
+                  >
+                    <span className="font-mono text-sm text-zinc-800">{ref}</span>
+                    <button
+                      onClick={() => setEditCutlists((prev) => prev.filter((r) => r !== ref))}
+                      className="text-zinc-400 hover:text-red-600 transition-colors"
+                      title="Remove"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-zinc-400 text-sm text-center py-2">No cutlists added yet</p>
+            )}
+
+            {/* Add new cutlist input */}
+            <div className="space-y-1.5">
+              <Label className="text-zinc-700 text-sm">Add Cutlist Number</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={cutlistEditInput}
+                  onChange={(e) => {
+                    setCutlistEditInput(e.target.value);
+                    setCutlistEditError(null);
+                  }}
+                  onKeyDown={(e) => { if (e.key === "Enter") addEditCutlist(); }}
+                  placeholder="e.g. 298282"
+                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
+                />
+                <Button
+                  onClick={addEditCutlist}
+                  disabled={!cutlistEditInput.trim() || isEditLooking}
+                  className="bg-blue-600 hover:bg-blue-700 flex-shrink-0"
+                >
+                  {isEditLooking ? "…" : "Add"}
+                </Button>
+              </div>
+              {cutlistEditError && (
+                <p className="text-red-600 text-xs">{cutlistEditError}</p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowEditCutlists(false)}
+              className="text-zinc-400"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={updateCutlistsMutation.isPending}
+              onClick={() =>
+                updateCutlistsMutation.mutate({ id: numId, data: { cutlistRefs: editCutlists } })
+              }
+            >
+              {updateCutlistsMutation.isPending ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>

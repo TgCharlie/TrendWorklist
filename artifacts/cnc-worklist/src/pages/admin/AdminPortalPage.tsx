@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/hooks/useApi";
+import { isElectron, selectFolder } from "@/lib/electron-bridge";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
@@ -41,7 +43,15 @@ interface Settings {
   filemaker_password: string;
   filemaker_allow_self_signed: string;
   csv_server_path: string;
+  folder_base_path: string;
   worklist_start_number: string;
+  folder_start_number_B: string;
+  folder_start_number_C: string;
+}
+
+interface NextFolderNumbers {
+  B: { nextNumber: number; formatted: string; foldersExist: boolean };
+  C: { nextNumber: number; formatted: string; foldersExist: boolean };
 }
 
 interface TestStep {
@@ -69,6 +79,7 @@ function UsersTab() {
   const [editUser, setEditUser] = useState<User | null>(null);
   const [form, setForm] = useState({ username: "", pin: "", role: "operator" as "admin" | "operator" });
   const [editForm, setEditForm] = useState({ pin: "", role: "operator" as "admin" | "operator", active: true });
+  const [deletePending, setDeletePending] = useState<User | null>(null);
 
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ["users"],
@@ -168,9 +179,7 @@ function UsersTab() {
                 </button>
                 {u.id !== currentUser?.id && (
                   <button
-                    onClick={() => {
-                      if (confirm(`Delete user "${u.username}"?`)) deleteMutation.mutate(u.id);
-                    }}
+                    onClick={() => setDeletePending(u)}
                     className="text-zinc-400 hover:text-red-500 transition-colors p-1.5"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -183,6 +192,15 @@ function UsersTab() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deletePending}
+        title="Delete user"
+        message={deletePending ? `Are you sure you want to delete the user "${deletePending.username}"? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        onConfirm={() => { if (deletePending) deleteMutation.mutate(deletePending.id); }}
+        onCancel={() => setDeletePending(null)}
+      />
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="bg-white border-zinc-200 text-zinc-950">
@@ -308,7 +326,10 @@ function useSettingsForm() {
     filemaker_password: "",
     filemaker_allow_self_signed: "false",
     csv_server_path: "",
+    folder_base_path: "",
     worklist_start_number: "1",
+    folder_start_number_B: "1",
+    folder_start_number_C: "1",
   });
 
   const { data: settings, isLoading } = useQuery<Settings>({
@@ -322,11 +343,20 @@ function useSettingsForm() {
     refetchInterval: false,
   });
 
+  const { data: nextFolderNumbers, refetch: refetchFolderNumbers } = useQuery<NextFolderNumbers>({
+    queryKey: ["settings-next-folder-numbers"],
+    queryFn: () => apiFetch("/settings/next-folder-numbers"),
+    refetchInterval: false,
+  });
+
   useEffect(() => {
     if (settings) {
       setForm({
         ...settings,
         filemaker_password: settings.filemaker_password === "***" ? "" : settings.filemaker_password,
+        folder_base_path: settings.folder_base_path ?? "",
+        folder_start_number_B: settings.folder_start_number_B ?? "1",
+        folder_start_number_C: settings.folder_start_number_C ?? "1",
       });
     }
   }, [settings]);
@@ -336,6 +366,7 @@ function useSettingsForm() {
       apiFetch<Settings>("/settings", { method: "PUT", body: JSON.stringify(data) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings-next-number"] });
+      queryClient.invalidateQueries({ queryKey: ["settings-next-folder-numbers"] });
       toast({ title: "Settings saved" });
     },
     onError: (err: Error) => {
@@ -343,7 +374,7 @@ function useSettingsForm() {
     },
   });
 
-  return { form, setForm, settings, isLoading, nextNumber, saveMutation };
+  return { form, setForm, settings, isLoading, nextNumber, nextFolderNumbers, refetchFolderNumbers, saveMutation };
 }
 
 function FileMakerTab() {
@@ -524,20 +555,49 @@ function FileMakerTab() {
 }
 
 function ServerTab() {
-  const { form, setForm, isLoading, nextNumber, saveMutation } = useSettingsForm();
+  const { form, setForm, isLoading, nextNumber, nextFolderNumbers, saveMutation } = useSettingsForm();
   const [forceOverride, setForceOverride] = useState(false);
+  const [forceOverrideFolders, setForceOverrideFolders] = useState(false);
+  const [pathValidation, setPathValidation] = useState<{ valid: boolean; reason?: string } | null>(null);
+  const [pathChecking, setPathChecking] = useState(false);
 
   if (isLoading) return <div className="text-zinc-400 text-center py-12">Loading…</div>;
+
+  async function checkFolderPath() {
+    const p = form.folder_base_path.trim();
+    if (!p) { setPathValidation({ valid: false, reason: "Enter a path first" }); return; }
+    setPathChecking(true);
+    setPathValidation(null);
+    try {
+      const result = await apiFetch<{ valid: boolean; reason?: string }>(
+        `/settings/validate-folder-path?path=${encodeURIComponent(p)}`
+      );
+      setPathValidation(result);
+    } catch {
+      setPathValidation({ valid: false, reason: "Could not check path" });
+    } finally {
+      setPathChecking(false);
+    }
+  }
 
   function handleSave() {
     const updates: Record<string, unknown> = {
       csv_server_path: form.csv_server_path,
+      folder_base_path: form.folder_base_path,
       worklist_start_number: form.worklist_start_number,
+      folder_start_number_B: form.folder_start_number_B,
+      folder_start_number_C: form.folder_start_number_C,
     };
     if (forceOverride) updates.force_override = true;
+    if (forceOverrideFolders) updates.force_override_folders = true;
     saveMutation.mutate(updates);
     setForceOverride(false);
+    setForceOverrideFolders(false);
   }
+
+  const foldersExistB = nextFolderNumbers?.B?.foldersExist ?? false;
+  const foldersExistC = nextFolderNumbers?.C?.foldersExist ?? false;
+  const anyFolderExists = foldersExistB || foldersExistC;
 
   return (
     <div className="space-y-6">
@@ -607,6 +667,99 @@ function ServerTab() {
         </div>
       </Card>
 
+      {nextFolderNumbers && (
+        <div className="grid grid-cols-2 gap-4">
+          {(["B", "C"] as const).map((m) => (
+            <Card key={m} className="bg-amber-50 border-amber-200 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-amber-900 font-semibold text-sm">Next Folder — Rover {m}</p>
+                  <p className="text-amber-700 font-mono text-2xl font-bold mt-0.5">{nextFolderNumbers[m].formatted}</p>
+                  {nextFolderNumbers[m].foldersExist && (
+                    <p className="text-amber-600 text-xs mt-1">
+                      Folders exist — Force Reset required to change start.
+                    </p>
+                  )}
+                </div>
+                <div className="text-amber-300">
+                  <svg className="w-9 h-9" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                  </svg>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Card className="bg-white border-zinc-200 p-6">
+        <h2 className="text-zinc-950 font-semibold mb-1">Folder Numbering</h2>
+        <p className="text-zinc-500 text-sm mb-5">Configure the start number for CNC job folders per machine.</p>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-zinc-700">Start Number — Rover B</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.folder_start_number_B}
+                  onChange={(e) => setForm((f) => ({ ...f, folder_start_number_B: e.target.value }))}
+                  className="bg-white border-zinc-300 text-zinc-950 max-w-40"
+                />
+                {foldersExistB && !forceOverrideFolders && (
+                  <span className="text-amber-600 text-xs flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Force Reset to change
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-zinc-700">Start Number — Rover C</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.folder_start_number_C}
+                  onChange={(e) => setForm((f) => ({ ...f, folder_start_number_C: e.target.value }))}
+                  className="bg-white border-zinc-300 text-zinc-950 max-w-40"
+                />
+                {foldersExistC && !forceOverrideFolders && (
+                  <span className="text-amber-600 text-xs flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Force Reset to change
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          {anyFolderExists && (
+            <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <input
+                id="force-override-folders"
+                type="checkbox"
+                checked={forceOverrideFolders}
+                onChange={(e) => setForceOverrideFolders(e.target.checked)}
+                className="w-4 h-4 accent-amber-500 mt-0.5"
+              />
+              <div>
+                <Label htmlFor="force-override-folders" className="text-amber-800 text-sm font-medium cursor-pointer">
+                  Force Reset Folder Sequence Counter
+                </Label>
+                <p className="text-amber-700 text-xs mt-0.5">
+                  Resets folder numbering to the start number above. Existing folders keep their references. Use with caution.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+
       <Card className="bg-white border-zinc-200 p-6">
         <h2 className="text-zinc-950 font-semibold mb-1">CSV Output</h2>
         <p className="text-zinc-500 text-sm mb-5">Local server path where CSV files are written.</p>
@@ -619,6 +772,66 @@ function ServerTab() {
             className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono text-sm"
           />
           <p className="text-zinc-500 text-xs">Windows UNC path on the local server where output CSV files are saved.</p>
+        </div>
+      </Card>
+
+      <Card className="bg-white border-zinc-200 p-6">
+        <h2 className="text-zinc-950 font-semibold mb-1">Folder Output</h2>
+        <p className="text-zinc-500 text-sm mb-5">Server path where CNC job folders are created.</p>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-zinc-700">Folder Base Path</Label>
+            <div className="flex gap-2">
+              <Input
+                value={form.folder_base_path}
+                onChange={(e) => { setForm((f) => ({ ...f, folder_base_path: e.target.value })); setPathValidation(null); }}
+                placeholder="\\server\share\cnc-folders"
+                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono text-sm flex-1"
+              />
+              {isElectron() && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    const chosen = await selectFolder();
+                    if (chosen) {
+                      setForm((f) => ({ ...f, folder_base_path: chosen }));
+                      setPathValidation(null);
+                    }
+                  }}
+                  className="border-zinc-300 text-zinc-700 hover:bg-zinc-50 shrink-0"
+                >
+                  Browse…
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={checkFolderPath}
+                disabled={pathChecking}
+                className="border-zinc-300 text-zinc-700 hover:bg-zinc-50 shrink-0"
+              >
+                {pathChecking ? "Checking…" : "Check Path"}
+              </Button>
+            </div>
+            {pathValidation && (
+              <p className={`text-xs flex items-center gap-1 ${pathValidation.valid ? "text-green-600" : "text-red-600"}`}>
+                {pathValidation.valid ? (
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+                {pathValidation.valid ? "Path exists and is accessible" : pathValidation.reason}
+              </p>
+            )}
+            <p className="text-zinc-500 text-xs">
+              Root directory where CNC job folders (e.g. B0042) will be created. Click "Check Path" to verify it exists on the server.
+            </p>
+          </div>
         </div>
       </Card>
 

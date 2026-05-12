@@ -1,20 +1,29 @@
 import { useState } from "react";
 import { downloadCsv } from "@/lib/electron-bridge";
-import { useParams, Link } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { printWorklistPdf } from "@/lib/generateWorklistPdf";
+import { useParams, Link, useLocation } from "wouter";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
+import { apiFetch } from "@/hooks/useApi";
 import {
   useGetWorklist,
+  useGetCutlist,
+  getCutlist,
   useListMaterials,
   useAddWorklistItem,
+  useUpdateWorklistItem,
   useDeleteWorklistItem,
+  useDeleteWorklist,
   useUpdateWorklist,
   useListStockbook,
+  useGetStockLevel,
   getGetWorklistQueryKey,
+  getGetCutlistQueryKey,
   getListWorklistsQueryKey,
   getListMaterialsQueryKey,
   getListStockbookQueryKey,
+  getGetStockLevelQueryKey,
 } from "@workspace/api-client-react";
-import type { WorklistStatus, StockbookItem } from "@workspace/api-client-react";
+import type { WorklistStatus, StockbookItem, WorklistItem } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +44,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const STATUS_OPTIONS: WorklistStatus[] = ["draft", "active", "complete"];
 
@@ -54,6 +64,14 @@ const EMPTY_ITEM = {
   materialId: null as number | null,
 };
 
+interface WorklistFolder {
+  id: number;
+  worklistId: number;
+  folderReference: string;
+  createdAt: string;
+  createdBy: number | null;
+}
+
 export default function WorklistDetailPage() {
   const { id } = useParams();
   const numId = Number(id);
@@ -62,10 +80,32 @@ export default function WorklistDetailPage() {
   const [showAddItem, setShowAddItem] = useState(false);
   const [itemForm, setItemForm] = useState({ ...EMPTY_ITEM });
   const [stockSearch, setStockSearch] = useState<string | undefined>(undefined);
+  const [deletePending, setDeletePending] = useState<{ id: number; pcode: string | null } | null>(null);
+  const [deleteWorklistPending, setDeleteWorklistPending] = useState(false);
+  const [deleteFolderPending, setDeleteFolderPending] = useState<{ id: number; folderReference: string } | null>(null);
+  const [showEditCutlists, setShowEditCutlists] = useState(false);
+  const [editCutlists, setEditCutlists] = useState<string[]>([]);
+  const [cutlistEditInput, setCutlistEditInput] = useState("");
+  const [cutlistEditError, setCutlistEditError] = useState<string | null>(null);
+  const [isEditLooking, setIsEditLooking] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [editingNoteValue, setEditingNoteValue] = useState("");
+  const [selectedMaterialItem, setSelectedMaterialItem] = useState<WorklistItem | null>(null);
+  const [, navigate] = useLocation();
 
   const { data: worklist, isLoading } = useGetWorklist(numId, {
     query: { queryKey: getGetWorklistQueryKey(numId), enabled: !!numId },
   });
+
+  const firstCutlistId = worklist?.cutlistRefs?.[0] ?? "";
+  const { data: firstCutlist } = useGetCutlist(firstCutlistId, {
+    query: {
+      queryKey: getGetCutlistQueryKey(firstCutlistId),
+      enabled: !!firstCutlistId,
+      staleTime: 300_000,
+    },
+  });
+  const cutlistItem = firstCutlist?.item as string | undefined;
 
   const { data: materials = [] } = useListMaterials(undefined, {
     query: { queryKey: getListMaterialsQueryKey(), staleTime: 60_000 },
@@ -111,6 +151,37 @@ export default function WorklistDetailPage() {
     },
   });
 
+  const updateItemNoteMutation = useUpdateWorklistItem({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetWorklistQueryKey(numId) });
+        setEditingNoteId(null);
+      },
+      onError: () => {
+        toast({ title: "Failed to save note", variant: "destructive" });
+      },
+    },
+  });
+
+  function startEditNote(itemId: number, current: string | null | undefined) {
+    setEditingNoteId(itemId);
+    setEditingNoteValue(current ?? "");
+  }
+
+  function commitNote(itemId: number) {
+    updateItemNoteMutation.mutate({ id: numId, itemId, data: { notes: editingNoteValue || null } });
+  }
+
+  const deleteWorklistMutation = useDeleteWorklist({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListWorklistsQueryKey() });
+        toast({ title: "Worklist deleted" });
+        navigate("/worklists");
+      },
+    },
+  });
+
   const updateStatusMutation = useUpdateWorklist({
     mutation: {
       onSuccess: () => {
@@ -121,6 +192,96 @@ export default function WorklistDetailPage() {
     },
   });
 
+  const updateCutlistsMutation = useUpdateWorklist({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetWorklistQueryKey(numId) });
+        queryClient.invalidateQueries({ queryKey: getListWorklistsQueryKey() });
+        setShowEditCutlists(false);
+        toast({ title: "Cutlists updated" });
+      },
+      onError: (err) => {
+        toast({
+          title: "Failed to update cutlists",
+          description: (err as Error).message,
+          variant: "destructive",
+        });
+      },
+    },
+  });
+
+  const foldersQueryKey = ["worklist-folders", numId];
+  const { data: folders = [] } = useQuery<WorklistFolder[]>({
+    queryKey: foldersQueryKey,
+    queryFn: () => apiFetch<WorklistFolder[]>(`/worklists/${numId}/folders`),
+    enabled: !!numId,
+  });
+
+  const addFolderMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<WorklistFolder & { diskWarning?: string }>(`/worklists/${numId}/folders`, { method: "POST" }),
+    onSuccess: (newFolder) => {
+      queryClient.setQueryData<WorklistFolder[]>(foldersQueryKey, (prev = []) => [
+        ...prev,
+        newFolder,
+      ]);
+      if (newFolder.diskWarning) {
+        toast({
+          title: `${newFolder.folderReference} reserved — folder not created on disk`,
+          description: "The server could not reach the base path. The folder will be created on disk when using the desktop app.",
+        });
+      } else {
+        toast({ title: `Folder ${newFolder.folderReference} created` });
+      }
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to create folder", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteFolderMutation = useMutation({
+    mutationFn: (folderId: number) =>
+      apiFetch<void>(`/worklists/${numId}/folders/${folderId}`, { method: "DELETE" }),
+    onSuccess: (_, folderId) => {
+      queryClient.setQueryData<WorklistFolder[]>(foldersQueryKey, (prev = []) =>
+        prev.filter((f) => f.id !== folderId),
+      );
+      setDeleteFolderPending(null);
+      toast({ title: "Folder record removed" });
+    },
+    onError: (err: Error) => {
+      setDeleteFolderPending(null);
+      toast({ title: "Failed to remove folder", description: err.message, variant: "destructive" });
+    },
+  });
+
+  function openEditCutlists() {
+    setEditCutlists([...(worklist?.cutlistRefs ?? [])]);
+    setCutlistEditInput("");
+    setCutlistEditError(null);
+    setShowEditCutlists(true);
+  }
+
+  async function addEditCutlist() {
+    const val = cutlistEditInput.trim();
+    if (!val) return;
+    if (editCutlists.includes(val)) {
+      setCutlistEditError("That cutlist number is already in this worklist");
+      return;
+    }
+    setIsEditLooking(true);
+    setCutlistEditError(null);
+    try {
+      await getCutlist(val);
+      setEditCutlists((prev) => [...prev, val]);
+      setCutlistEditInput("");
+    } catch {
+      setCutlistEditError(`Cutlist "${val}" not found in FileMaker`);
+    } finally {
+      setIsEditLooking(false);
+    }
+  }
+
   function handleMaterialSelect(materialId: string) {
     const mat = materials.find((m) => String(m.id) === materialId);
     if (mat) {
@@ -129,6 +290,9 @@ export default function WorklistDetailPage() {
         materialId: mat.id,
         pcode: mat.pcode,
         displayName: mat.displayName,
+        length: mat.length != null ? String(mat.length) : f.length,
+        width: mat.width != null ? String(mat.width) : f.width,
+        thickness: mat.thickness != null ? String(mat.thickness) : f.thickness,
       }));
       setStockSearch(mat.pcode);
     }
@@ -182,6 +346,11 @@ export default function WorklistDetailPage() {
         </Link>
 
         <div className="flex-1 min-w-0">
+          {/* Cutlist item description — shown prominently above the worklist number */}
+          {cutlistItem && (
+            <p className="text-base font-semibold text-zinc-800 mb-1 leading-snug">{cutlistItem}</p>
+          )}
+
           {/* Title row */}
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-2xl font-bold text-zinc-950 font-mono">{worklist.worklistNumber}</h1>
@@ -240,19 +409,32 @@ export default function WorklistDetailPage() {
           </div>
 
           {/* Cutlist pills */}
-          {cutlistRefs.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              <span className="text-zinc-400 text-xs">Cutlists:</span>
-              {cutlistRefs.map((ref) => (
-                <span
-                  key={ref}
-                  className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-800 font-mono text-xs"
-                >
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            <span className="text-zinc-400 text-xs">Cutlists:</span>
+            {cutlistRefs.map((ref, i) => (
+              <span key={ref} className="inline-flex items-center gap-1.5">
+                <span className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-800 font-mono text-xs">
                   {ref}
                 </span>
-              ))}
-            </div>
-          )}
+                {i === 0 && cutlistItem && (
+                  <span className="text-zinc-700 text-xs font-medium">{cutlistItem}</span>
+                )}
+              </span>
+            ))}
+            {cutlistRefs.length === 0 && (
+              <span className="text-zinc-400 text-xs italic">None</span>
+            )}
+            <button
+              onClick={openEditCutlists}
+              className="inline-flex items-center gap-1 text-zinc-400 hover:text-blue-600 text-xs ml-1"
+              title="Edit cutlists"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
+              </svg>
+              Edit
+            </button>
+          </div>
         </div>
 
         {/* Actions */}
@@ -274,6 +456,31 @@ export default function WorklistDetailPage() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-zinc-300 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100"
+            onClick={() =>
+              printWorklistPdf({
+                worklistNumber: worklist.worklistNumber,
+                folderNumber: worklist.folderNumber,
+                machineType: worklist.machineType,
+                status: worklist.status,
+                projectId: worklist.projectId,
+                projectAddress: worklist.projectAddress,
+                createdAt: worklist.createdAt,
+                cutlistRefs,
+                cutlistItem,
+                items,
+              })
+            }
+            title="Print / Save PDF"
+          >
+            <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Print PDF
+          </Button>
           {worklist.status === "complete" && (
             <Button
               variant="outline"
@@ -288,6 +495,17 @@ export default function WorklistDetailPage() {
               CSV
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-zinc-400 hover:text-red-600"
+            title="Delete worklist"
+            onClick={() => setDeleteWorklistPending(true)}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </Button>
         </div>
       </div>
 
@@ -296,16 +514,31 @@ export default function WorklistDetailPage() {
         <h2 className="text-zinc-950 font-semibold">
           Items <span className="text-zinc-500 font-normal text-sm">({items.length})</span>
         </h2>
-        <Button
-          size="sm"
-          className="bg-blue-600 hover:bg-blue-700"
-          onClick={() => setShowAddItem(true)}
-        >
-          <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Item
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-zinc-300 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100"
+            onClick={() => addFolderMutation.mutate()}
+            disabled={addFolderMutation.isPending}
+            title="Create a new sequential folder on the server for this worklist"
+          >
+            <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+            </svg>
+            {addFolderMutation.isPending ? "Creating…" : "Add Folder"}
+          </Button>
+          <Button
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700"
+            onClick={() => setShowAddItem(true)}
+          >
+            <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Item
+          </Button>
+        </div>
       </div>
 
       {items.length === 0 ? (
@@ -317,57 +550,211 @@ export default function WorklistDetailPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-zinc-50">
-                <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">PCODE</th>
-                <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Description</th>
+                <th className="text-left px-4 py-2.5 text-zinc-500 font-medium w-20">PCODE</th>
+                <th className="text-left px-4 py-2.5 text-zinc-500 font-medium w-64">Description</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">Qty</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">L (mm)</th>
                 <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">W (mm)</th>
+                <th className="text-right px-4 py-2.5 text-zinc-500 font-medium">T (mm)</th>
                 <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Notes</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
-              {items.map((item, i) => (
-                <tr
-                  key={item.id}
-                  className={`border-t border-zinc-200 ${i % 2 === 0 ? "bg-white" : "bg-zinc-50"}`}
-                >
-                  <td className="px-4 py-2.5 font-mono text-blue-600 text-xs">{item.pcode}</td>
-                  <td className="px-4 py-2.5 text-zinc-800">{item.displayName}</td>
-                  <td className="px-4 py-2.5 text-zinc-800 text-right">{item.quantity}</td>
-                  <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
-                    {item.length ?? "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
-                    {item.width ?? "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-zinc-500 text-xs">{item.notes}</td>
-                  <td className="px-4 py-2.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm(`Delete ${item.pcode ?? "item"}?`)) {
-                          deleteItemMutation.mutate({ id: numId, itemId: item.id });
-                        }
-                      }}
-                      className="text-zinc-400 hover:text-red-500 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              {items.map((item, i) => {
+                return (
+                  <tr
+                    key={item.id}
+                    className={`border-t border-zinc-200 ${i % 2 === 0 ? "bg-white" : "bg-zinc-50"}`}
+                  >
+                    <td className="px-4 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMaterialItem(item)}
+                        className="font-mono text-blue-600 text-xs hover:underline hover:text-blue-800"
+                      >
+                        {item.pcode}
+                      </button>
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-800">{item.displayName}</td>
+                    <td className="px-4 py-2.5 text-zinc-800 text-right">{item.quantity}</td>
+                    <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
+                      {item.length ?? "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
+                      {item.width ?? "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
+                      {item.thickness ?? "—"}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {editingNoteId === item.id ? (
+                        <input
+                          autoFocus
+                          value={editingNoteValue}
+                          onChange={(e) => setEditingNoteValue(e.target.value)}
+                          onBlur={() => commitNote(item.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") { e.currentTarget.blur(); }
+                            if (e.key === "Escape") { setEditingNoteId(null); }
+                          }}
+                          className="w-full text-xs text-zinc-800 bg-white border border-blue-400 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-400 placeholder:text-zinc-400"
+                          placeholder="Add a note…"
                         />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startEditNote(item.id, item.notes)}
+                          className="w-full text-left text-xs px-2 py-1 rounded hover:bg-zinc-100 transition-colors min-h-[28px]"
+                          title="Click to add/edit note"
+                        >
+                          {item.notes ? (
+                            <span className="text-zinc-600">{item.notes}</span>
+                          ) : (
+                            <span className="text-zinc-300 italic">Add note…</span>
+                          )}
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setDeletePending({ id: item.id, pcode: item.pcode ?? null })}
+                        className="text-zinc-400 hover:text-red-500 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Folders section */}
+      <div className="mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-zinc-950 font-semibold">
+            Folders <span className="text-zinc-500 font-normal text-sm">({folders.length})</span>
+          </h2>
+        </div>
+        {folders.length === 0 ? (
+          <Card className="bg-white border-zinc-200 p-6 text-center">
+            <p className="text-zinc-500 text-sm">
+              No folders yet. Click "Add Folder" to create the next sequential folder on the server.
+            </p>
+          </Card>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-zinc-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-zinc-50">
+                  <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Folder Reference</th>
+                  <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Created</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {folders.map((folder, i) => (
+                  <tr
+                    key={folder.id}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/worklists/${numId}/folders/${folder.id}/open`, {
+                          method: "POST",
+                          credentials: "include",
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                          toast({ title: "Could not open folder", description: data.error ?? "Unknown error", variant: "destructive" });
+                        } else if (!data.opened) {
+                          toast({ title: `${folder.folderReference}`, description: data.path ?? "Path unavailable" });
+                        }
+                      } catch {
+                        toast({ title: "Could not open folder", description: "Network error", variant: "destructive" });
+                      }
+                    }}
+                    className={`border-t border-zinc-200 cursor-pointer transition-colors ${i % 2 === 0 ? "bg-white hover:bg-amber-50" : "bg-zinc-50 hover:bg-amber-50"}`}
+                  >
+                    <td className="px-4 py-2.5">
+                      <span className="inline-flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                        </svg>
+                        <span className="font-mono font-semibold text-zinc-900">{folder.folderReference}</span>
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-500 text-xs">
+                      {new Date(folder.createdAt).toLocaleString("en-AU", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <button
+                        type="button"
+                        title="Delete folder record"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteFolderPending({ id: folder.id, folderReference: folder.folderReference });
+                        }}
+                        className="text-zinc-300 hover:text-red-500 transition-colors text-base leading-none font-bold"
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <ConfirmDialog
+        open={!!deletePending}
+        title="Remove item"
+        message={deletePending ? `Are you sure you want to remove ${deletePending.pcode ?? "this item"} from the worklist?` : ""}
+        confirmLabel="Remove"
+        onConfirm={() => { if (deletePending) deleteItemMutation.mutate({ id: numId, itemId: deletePending.id }); }}
+        onCancel={() => setDeletePending(null)}
+      />
+
+      <ConfirmDialog
+        open={deleteWorklistPending}
+        title="Delete Worklist"
+        message={worklist ? `Permanently delete ${worklist.worklistNumber}? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={() => { deleteWorklistMutation.mutate({ id: numId }); setDeleteWorklistPending(false); }}
+        onCancel={() => setDeleteWorklistPending(false)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteFolderPending}
+        title="Remove folder record"
+        message={
+          deleteFolderPending
+            ? `Remove the database record for ${deleteFolderPending.folderReference}? The folder on disk will not be deleted and this reference will not be reused.`
+            : ""
+        }
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+        onConfirm={() => { if (deleteFolderPending) deleteFolderMutation.mutate(deleteFolderPending.id); }}
+        onCancel={() => setDeleteFolderPending(null)}
+      />
 
       {/* Add Item Dialog */}
       <Dialog
@@ -417,13 +804,25 @@ export default function WorklistDetailPage() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-zinc-700">Quantity</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={itemForm.quantity}
-                  onChange={(e) => setItemForm((f) => ({ ...f, quantity: Number(e.target.value) }))}
-                  className="bg-white border-zinc-300 text-zinc-950"
-                />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setItemForm((f) => ({ ...f, quantity: Math.max(1, f.quantity - 1) }))}
+                    className="w-9 h-9 flex items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 text-lg font-medium select-none"
+                  >
+                    −
+                  </button>
+                  <span className="w-8 text-center font-mono text-zinc-950 text-sm font-semibold">
+                    {itemForm.quantity}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setItemForm((f) => ({ ...f, quantity: f.quantity + 1 }))}
+                    className="w-9 h-9 flex items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 text-lg font-medium select-none"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -458,16 +857,16 @@ export default function WorklistDetailPage() {
                 className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {(["length", "width"] as const).map((dim) => (
+            <div className="grid grid-cols-3 gap-3">
+              {(["length", "width", "thickness"] as const).map((dim) => (
                 <div key={dim} className="space-y-1.5">
                   <Label className="text-zinc-700">
-                    {dim === "length" ? "Length" : "Width"} (mm)
+                    {dim === "length" ? "Length" : dim === "width" ? "Width" : "Thickness"} (mm)
                   </Label>
                   <Input
                     value={itemForm[dim]}
                     onChange={(e) => setItemForm((f) => ({ ...f, [dim]: e.target.value }))}
-                    placeholder={dim === "length" ? "2400" : "1200"}
+                    placeholder={dim === "length" ? "2400" : dim === "width" ? "1200" : "18"}
                     className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
                   />
                 </div>
@@ -507,6 +906,7 @@ export default function WorklistDetailPage() {
                     quantity: itemForm.quantity,
                     length: itemForm.length ? Number(itemForm.length) : undefined,
                     width: itemForm.width ? Number(itemForm.width) : undefined,
+                    thickness: itemForm.thickness ? Number(itemForm.thickness) : undefined,
                     notes: itemForm.notes || undefined,
                   },
                 })
@@ -518,6 +918,201 @@ export default function WorklistDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Cutlists Dialog */}
+      <Dialog open={showEditCutlists} onOpenChange={setShowEditCutlists}>
+        <DialogContent className="bg-white border-zinc-200 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-950">Edit Cutlists</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            {/* Current cutlist list */}
+            {editCutlists.length > 0 ? (
+              <div className="space-y-1.5">
+                {editCutlists.map((ref) => (
+                  <div
+                    key={ref}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-zinc-50 border border-zinc-200"
+                  >
+                    <span className="font-mono text-sm text-zinc-800">{ref}</span>
+                    <button
+                      onClick={() => setEditCutlists((prev) => prev.filter((r) => r !== ref))}
+                      className="text-zinc-400 hover:text-red-600 transition-colors"
+                      title="Remove"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-zinc-400 text-sm text-center py-2">No cutlists added yet</p>
+            )}
+
+            {/* Add new cutlist input */}
+            <div className="space-y-1.5">
+              <Label className="text-zinc-700 text-sm">Add Cutlist Number</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={cutlistEditInput}
+                  onChange={(e) => {
+                    setCutlistEditInput(e.target.value);
+                    setCutlistEditError(null);
+                  }}
+                  onKeyDown={(e) => { if (e.key === "Enter") addEditCutlist(); }}
+                  placeholder="e.g. 298282"
+                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
+                />
+                <Button
+                  onClick={addEditCutlist}
+                  disabled={!cutlistEditInput.trim() || isEditLooking}
+                  className="bg-blue-600 hover:bg-blue-700 flex-shrink-0"
+                >
+                  {isEditLooking ? "…" : "Add"}
+                </Button>
+              </div>
+              {cutlistEditError && (
+                <p className="text-red-600 text-xs">{cutlistEditError}</p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowEditCutlists(false)}
+              className="text-zinc-400"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={updateCutlistsMutation.isPending}
+              onClick={() =>
+                updateCutlistsMutation.mutate({ id: numId, data: { cutlistRefs: editCutlists } })
+              }
+            >
+              {updateCutlistsMutation.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Material Info Dialog */}
+      {selectedMaterialItem && (
+        <MaterialInfoDialog
+          item={selectedMaterialItem}
+          onClose={() => setSelectedMaterialItem(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function MaterialInfoDialog({
+  item,
+  onClose,
+}: {
+  item: WorklistItem;
+  onClose: () => void;
+}) {
+  const pcode = item.pcode ?? "";
+  const { data: stock, isLoading } = useGetStockLevel(pcode, {
+    query: {
+      queryKey: getGetStockLevelQueryKey(pcode),
+      enabled: !!pcode,
+      staleTime: 60_000,
+    },
+  });
+
+  const qtyOnHand = stock?.qtyOnHand ?? null;
+  const stockColor =
+    qtyOnHand === null
+      ? "text-zinc-400"
+      : qtyOnHand <= 0
+      ? "text-red-600"
+      : qtyOnHand < 5
+      ? "text-amber-600"
+      : "text-green-700";
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="bg-white border-zinc-200 max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-zinc-950 font-mono text-base">{pcode}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          {/* Description */}
+          <div>
+            <p className="text-zinc-800 text-sm font-medium">{item.displayName}</p>
+          </div>
+
+          {/* Dimensions */}
+          {(item.length || item.width || item.thickness) && (
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Length", value: item.length, unit: "mm" },
+                { label: "Width", value: item.width, unit: "mm" },
+                { label: "Thickness", value: item.thickness, unit: "mm" },
+              ].map(({ label, value, unit }) => (
+                <div key={label} className="bg-zinc-50 rounded-lg px-3 py-2 text-center">
+                  <p className="text-zinc-400 text-xs mb-0.5">{label}</p>
+                  <p className="text-zinc-900 text-sm font-mono font-semibold">
+                    {value ?? "—"}
+                    {value && <span className="text-zinc-400 text-xs font-normal ml-0.5">{unit}</span>}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Stock */}
+          <div className="border border-zinc-200 rounded-lg divide-y divide-zinc-100">
+            <div className="flex items-center justify-between px-4 py-2.5">
+              <span className="text-zinc-500 text-sm">Stock on hand</span>
+              {isLoading ? (
+                <span className="text-zinc-400 text-sm italic">Loading…</span>
+              ) : qtyOnHand !== null ? (
+                <span className={`font-semibold text-sm ${stockColor}`}>
+                  {qtyOnHand} {stock?.unit ?? ""}
+                </span>
+              ) : (
+                <span className="text-zinc-400 text-sm italic">Not in stockbook</span>
+              )}
+            </div>
+            {stock?.location && (
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-zinc-500 text-sm">Location</span>
+                <span className="text-zinc-800 text-sm font-mono">{stock.location}</span>
+              </div>
+            )}
+            {stock?.otype && (
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-zinc-500 text-sm">Type</span>
+                <span className="text-zinc-800 text-sm">{stock.otype}</span>
+              </div>
+            )}
+            {stock?.cost != null && (
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-zinc-500 text-sm">Cost</span>
+                <span className="text-zinc-800 text-sm font-mono">
+                  ${Number(stock.cost).toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} className="text-zinc-500">
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

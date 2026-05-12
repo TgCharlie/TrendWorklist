@@ -2,6 +2,10 @@ declare global {
   interface Window {
     electronAPI?: {
       isElectron: boolean;
+      selectFolder: () => Promise<{
+        canceled: boolean;
+        path: string | null;
+      }>;
       saveCSV: (
         csvContent: string,
         suggestedFilename: string,
@@ -17,6 +21,12 @@ declare global {
 
 export function isElectron(): boolean {
   return typeof window !== "undefined" && !!window.electronAPI?.isElectron;
+}
+
+export async function selectFolder(): Promise<string | null> {
+  if (!isElectron() || !window.electronAPI) return null;
+  const result = await window.electronAPI.selectFolder();
+  return result.canceled ? null : result.path;
 }
 
 export async function downloadCsv(

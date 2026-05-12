@@ -380,6 +380,25 @@ router.post("/:id/folders", requireAuth, async (req, res): Promise<void> => {
   }
 });
 
+router.delete("/:id/folders/:folderId", requireAuth, async (req, res): Promise<void> => {
+  const worklistId = Number(req.params.id);
+  const folderId = Number(req.params.folderId);
+
+  const [folder] = await db
+    .select()
+    .from(worklistFoldersTable)
+    .where(eq(worklistFoldersTable.id, folderId))
+    .limit(1);
+
+  if (!folder || folder.worklistId !== worklistId) {
+    res.status(404).json({ error: "Folder not found" });
+    return;
+  }
+
+  await db.delete(worklistFoldersTable).where(eq(worklistFoldersTable.id, folderId));
+  res.status(204).end();
+});
+
 router.post("/:id/folders/:folderId/open", requireAuth, async (req, res): Promise<void> => {
   const worklistId = Number(req.params.id);
   const folderId = Number(req.params.folderId);

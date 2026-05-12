@@ -82,6 +82,7 @@ export default function WorklistDetailPage() {
   const [stockSearch, setStockSearch] = useState<string | undefined>(undefined);
   const [deletePending, setDeletePending] = useState<{ id: number; pcode: string | null } | null>(null);
   const [deleteWorklistPending, setDeleteWorklistPending] = useState(false);
+  const [deleteFolderPending, setDeleteFolderPending] = useState<{ id: number; folderReference: string } | null>(null);
   const [showEditCutlists, setShowEditCutlists] = useState(false);
   const [editCutlists, setEditCutlists] = useState<string[]>([]);
   const [cutlistEditInput, setCutlistEditInput] = useState("");
@@ -235,6 +236,22 @@ export default function WorklistDetailPage() {
     },
     onError: (err: Error) => {
       toast({ title: "Failed to create folder", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteFolderMutation = useMutation({
+    mutationFn: (folderId: number) =>
+      apiFetch<void>(`/worklists/${numId}/folders/${folderId}`, { method: "DELETE" }),
+    onSuccess: (_, folderId) => {
+      queryClient.setQueryData<WorklistFolder[]>(foldersQueryKey, (prev = []) =>
+        prev.filter((f) => f.id !== folderId),
+      );
+      setDeleteFolderPending(null);
+      toast({ title: "Folder record removed" });
+    },
+    onError: (err: Error) => {
+      setDeleteFolderPending(null);
+      toast({ title: "Failed to remove folder", description: err.message, variant: "destructive" });
     },
   });
 
@@ -643,6 +660,7 @@ export default function WorklistDetailPage() {
                 <tr className="bg-zinc-50">
                   <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Folder Reference</th>
                   <th className="text-left px-4 py-2.5 text-zinc-500 font-medium">Created</th>
+                  <th className="px-4 py-2.5" />
                 </tr>
               </thead>
               <tbody>
@@ -684,6 +702,19 @@ export default function WorklistDetailPage() {
                         minute: "2-digit",
                       })}
                     </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <button
+                        type="button"
+                        title="Delete folder record"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteFolderPending({ id: folder.id, folderReference: folder.folderReference });
+                        }}
+                        className="text-zinc-300 hover:text-red-500 transition-colors text-base leading-none font-bold"
+                      >
+                        ×
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -709,6 +740,20 @@ export default function WorklistDetailPage() {
         confirmVariant="destructive"
         onConfirm={() => { deleteWorklistMutation.mutate({ id: numId }); setDeleteWorklistPending(false); }}
         onCancel={() => setDeleteWorklistPending(false)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteFolderPending}
+        title="Remove folder record"
+        message={
+          deleteFolderPending
+            ? `Remove the database record for ${deleteFolderPending.folderReference}? The folder on disk will not be deleted and this reference will not be reused.`
+            : ""
+        }
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+        onConfirm={() => { if (deleteFolderPending) deleteFolderMutation.mutate(deleteFolderPending.id); }}
+        onCancel={() => setDeleteFolderPending(null)}
       />
 
       {/* Add Item Dialog */}

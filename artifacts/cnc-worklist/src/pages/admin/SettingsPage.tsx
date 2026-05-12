@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { isElectron, selectFolder } from "@/lib/electron-bridge";
 
 interface Settings {
   filemaker_server_url: string;
@@ -206,24 +207,54 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-zinc-700">CSV Server Path</Label>
-              <Input
-                value={form.csv_server_path}
-                onChange={(e) => setForm((f) => ({ ...f, csv_server_path: e.target.value }))}
-                placeholder="\\server\share\worklists"
-                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono text-sm"
-              />
+              <div className="flex gap-2">
+                <Input
+                  value={form.csv_server_path}
+                  onChange={(e) => setForm((f) => ({ ...f, csv_server_path: e.target.value }))}
+                  placeholder="\\server\share\worklists"
+                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono text-sm"
+                />
+                {isElectron() && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+                    onClick={async () => {
+                      const p = await selectFolder("Select CSV Output Folder");
+                      if (p) setForm((f) => ({ ...f, csv_server_path: p }));
+                    }}
+                  >
+                    Browse…
+                  </Button>
+                )}
+              </div>
               <p className="text-zinc-500 text-xs">
                 Windows UNC path where CSV files are saved on the local server (for reference).
               </p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-zinc-700">Folder Base Path</Label>
-              <Input
-                value={form.folder_base_path}
-                onChange={(e) => setForm((f) => ({ ...f, folder_base_path: e.target.value }))}
-                placeholder="\\server\share\cnc-folders"
-                className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono text-sm"
-              />
+              <div className="flex gap-2">
+                <Input
+                  value={form.folder_base_path}
+                  onChange={(e) => setForm((f) => ({ ...f, folder_base_path: e.target.value }))}
+                  placeholder="\\server\share\cnc-folders"
+                  className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono text-sm"
+                />
+                {isElectron() && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+                    onClick={async () => {
+                      const p = await selectFolder("Select Folder Base Path");
+                      if (p) setForm((f) => ({ ...f, folder_base_path: p }));
+                    }}
+                  >
+                    Browse…
+                  </Button>
+                )}
+              </div>
               <p className="text-zinc-500 text-xs">
                 Root directory where CNC job folders (e.g. B0042) will be created on the server.
               </p>

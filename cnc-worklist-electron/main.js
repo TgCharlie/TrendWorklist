@@ -172,9 +172,9 @@ function createWindow(port) {
 }
 
 // ─── IPC: select folder via native dialog ────────────────────────────────────
-ipcMain.handle("select-folder", async () => {
+ipcMain.handle("select-folder", async (_event, { title } = {}) => {
   const { filePaths, canceled } = await dialog.showOpenDialog(mainWindow, {
-    title: "Select Folder Base Path",
+    title: title || "Select Folder",
     properties: ["openDirectory", "createDirectory"],
   });
   if (canceled || filePaths.length === 0) return { canceled: true, path: null };

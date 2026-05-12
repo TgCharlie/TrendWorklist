@@ -2,7 +2,7 @@ declare global {
   interface Window {
     electronAPI?: {
       isElectron: boolean;
-      selectFolder: () => Promise<{
+      selectFolder: (title?: string) => Promise<{
         canceled: boolean;
         path: string | null;
       }>;
@@ -23,9 +23,9 @@ export function isElectron(): boolean {
   return typeof window !== "undefined" && !!window.electronAPI?.isElectron;
 }
 
-export async function selectFolder(): Promise<string | null> {
+export async function selectFolder(title?: string): Promise<string | null> {
   if (!isElectron() || !window.electronAPI) return null;
-  const result = await window.electronAPI.selectFolder();
+  const result = await window.electronAPI.selectFolder(title);
   return result.canceled ? null : result.path;
 }
 

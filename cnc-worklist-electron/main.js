@@ -171,6 +171,16 @@ function createWindow(port) {
   }
 }
 
+// ─── IPC: select folder via native dialog ────────────────────────────────────
+ipcMain.handle("select-folder", async () => {
+  const { filePaths, canceled } = await dialog.showOpenDialog(mainWindow, {
+    title: "Select Folder Base Path",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (canceled || filePaths.length === 0) return { canceled: true, path: null };
+  return { canceled: false, path: filePaths[0] };
+});
+
 // ─── IPC: save CSV via native dialog ─────────────────────────────────────────
 ipcMain.handle("save-csv", async (_event, { csvContent, suggestedFilename }) => {
   const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {

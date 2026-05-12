@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/hooks/useApi";
+import { isElectron, selectFolder } from "@/lib/electron-bridge";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -787,6 +788,22 @@ function ServerTab() {
                 placeholder="\\server\share\cnc-folders"
                 className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 font-mono text-sm flex-1"
               />
+              {isElectron() && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    const chosen = await selectFolder();
+                    if (chosen) {
+                      setForm((f) => ({ ...f, folder_base_path: chosen }));
+                      setPathValidation(null);
+                    }
+                  }}
+                  className="border-zinc-300 text-zinc-700 hover:bg-zinc-50 shrink-0"
+                >
+                  Browse…
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"

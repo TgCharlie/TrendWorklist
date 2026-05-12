@@ -54506,12 +54506,34 @@ function createTables() {
       pcode TEXT NOT NULL UNIQUE,
       description TEXT NOT NULL DEFAULT '',
       qty_on_hand REAL NOT NULL DEFAULT 0,
+      cost REAL,
+      cost_sub REAL,
       unit TEXT,
       location TEXT,
+      otype TEXT,
+      project TEXT,
+      pid TEXT,
+      image TEXT,
+      tag_stock_tracked INTEGER NOT NULL DEFAULT 1,
       last_synced_at INTEGER,
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
   `);
+  const stockbookMigrations = [
+    "ALTER TABLE stockbook ADD COLUMN cost REAL",
+    "ALTER TABLE stockbook ADD COLUMN cost_sub REAL",
+    "ALTER TABLE stockbook ADD COLUMN otype TEXT",
+    "ALTER TABLE stockbook ADD COLUMN project TEXT",
+    "ALTER TABLE stockbook ADD COLUMN pid TEXT",
+    "ALTER TABLE stockbook ADD COLUMN image TEXT",
+    "ALTER TABLE stockbook ADD COLUMN tag_stock_tracked INTEGER NOT NULL DEFAULT 1"
+  ];
+  for (const sql2 of stockbookMigrations) {
+    try {
+      client.exec(sql2);
+    } catch {
+    }
+  }
 }
 async function seedDatabase() {
   createTables();

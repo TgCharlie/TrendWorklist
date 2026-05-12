@@ -45,9 +45,8 @@ win:
   # electron-builder uses a default Electron icon if the file is absent.
 
 msi:
-  createDesktopShortcut: true
-  createStartMenuShortcut: true
-  shortcutName: CNC Worklist Manager
+  createDesktopShortcut: false
+  createStartMenuShortcut: false
 
 nsis:
   oneClick: false

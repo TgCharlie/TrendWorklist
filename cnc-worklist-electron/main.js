@@ -13,6 +13,7 @@ const fs = require("fs");
 const net = require("net");
 const http = require("http");
 const crypto = require("crypto");
+const { autoUpdater } = require("electron-updater");
 
 // undici (used by the API bundle for FileMaker SSL bypass) calls
 // v8.markAsUncloneable which was added in Node 22. Electron 32 ships
@@ -104,6 +105,110 @@ async function startApiServer() {
 
   await waitForServer(port);
   return port;
+}
+
+// ─── Auto-updater ─────────────────────────────────────────────────────────────
+function setupAutoUpdater() {
+  autoUpdater.logger = null;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("update-available", (info) => {
+    dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "Update Available",
+      message: `Version ${info.version} is available`,
+      detail:
+        "The update is downloading in the background. You'll be notified when it's ready to install.",
+      buttons: ["OK"],
+    });
+  });
+
+  autoUpdater.on("update-downloaded", () => {
+    dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "Update Ready to Install",
+      message: "A new version has been downloaded.",
+      detail:
+        "Restart now to apply the update, or it will install automatically the next time you quit the app.",
+      buttons: ["Restart Now", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall();
+    });
+  });
+
+  autoUpdater.on("error", (err) => {
+    console.error("Auto-updater error:", err?.message ?? err);
+  });
+
+  // Check 5 seconds after startup so the main window is fully loaded
+  setTimeout(() => {
+    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  }, 5000);
+}
+
+function checkForUpdatesManually() {
+  if (!app.isPackaged) {
+    dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "Dev Mode",
+      message: "Update checking is only available in the packaged app.",
+      buttons: ["OK"],
+    });
+    return;
+  }
+  autoUpdater.checkForUpdates().catch((err) => {
+    dialog.showErrorBox("Update Check Failed", err?.message ?? String(err));
+  });
+}
+
+// ─── Application menu ─────────────────────────────────────────────────────────
+function buildAppMenu() {
+  const isMac = process.platform === "darwin";
+  const template = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: "about" },
+              { type: "separator" },
+              { role: "services" },
+              { type: "separator" },
+              { role: "hide" },
+              { role: "hideOthers" },
+              { role: "unhide" },
+              { type: "separator" },
+              { role: "quit" },
+            ],
+          },
+        ]
+      : []),
+    { role: "fileMenu" },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    { role: "windowMenu" },
+    {
+      role: "help",
+      submenu: [
+        {
+          label: "Check for Updates…",
+          click: checkForUpdatesManually,
+        },
+        { type: "separator" },
+        {
+          label: "View on GitHub",
+          click: () =>
+            shell.openExternal(
+              "https://github.com/TgCharlie/TrendWorklist/releases",
+            ),
+        },
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 // ─── Tray icon ────────────────────────────────────────────────────────────────
@@ -231,7 +336,9 @@ app.whenReady().then(async () => {
 
   splash.close();
 
+  buildAppMenu();
   createWindow(apiPort);
+  setupAutoUpdater();
 
   if (process.platform === "win32") {
     createTray();

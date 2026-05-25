@@ -8,12 +8,14 @@ const {
   Menu,
   nativeImage,
 } = require("electron");
+const { autoUpdater } = require("electron-updater");
+
+let updateStatus = { status: "idle", version: app.getVersion() };
 const path = require("path");
 const fs = require("fs");
 const net = require("net");
 const http = require("http");
 const crypto = require("crypto");
-const { autoUpdater } = require("electron-updater");
 
 // undici (used by the API bundle for FileMaker SSL bypass) calls
 // v8.markAsUncloneable which was added in Node 22. Electron 32 ships
@@ -114,6 +116,9 @@ function setupAutoUpdater() {
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on("update-available", (info) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("update-status", { status: "downloading", version: app.getVersion(), nextVersion: info.version });
+    }
     dialog.showMessageBox(mainWindow, {
       type: "info",
       title: "Update Available",
@@ -125,6 +130,9 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on("update-downloaded", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("update-status", { status: "ready", version: app.getVersion() });
+    }
     dialog.showMessageBox(mainWindow, {
       type: "info",
       title: "Update Ready to Install",
@@ -140,6 +148,9 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on("error", (err) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("update-status", { status: "error", version: app.getVersion(), error: err?.message ?? String(err) });
+    }
     console.error("Auto-updater error:", err?.message ?? err);
   });
 
@@ -148,6 +159,11 @@ function setupAutoUpdater() {
     autoUpdater.checkForUpdatesAndNotify().catch(() => {});
   }, 5000);
 }
+
+// Broadcast current update status to renderer (for sidebar badge)
+ipcMain.handle("get-app-version", () => ({ version: app.getVersion() }));
+
+ipcMain.on("check-for-updates", () => checkForUpdatesManually());
 
 function checkForUpdatesManually() {
   if (!app.isPackaged) {

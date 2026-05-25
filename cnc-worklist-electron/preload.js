@@ -8,4 +8,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   saveCSV: (csvContent, suggestedFilename) =>
     ipcRenderer.invoke("save-csv", { csvContent, suggestedFilename }),
+
+  getAppVersion: () =>
+    ipcRenderer.invoke("get-app-version"),
+
+  checkForUpdates: () =>
+    ipcRenderer.send("check-for-updates"),
+
+  onUpdateStatus: (callback) =>
+    ipcRenderer.on("update-status", (_event, value) => callback(value)),
 });

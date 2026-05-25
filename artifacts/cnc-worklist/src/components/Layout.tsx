@@ -1,8 +1,9 @@
-import { useState, ReactNode } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import { Link, useRoute } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { isElectron, getAppVersion, onUpdateStatus } from "@/lib/electron-bridge";
 
 interface NavItem {
   path: string;
@@ -62,7 +63,7 @@ const navItems: NavItem[] = [
     label: "Admin",
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c-.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
@@ -91,10 +92,33 @@ function NavLink({ item }: { item: NavItem }) {
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<{
+    status: string;
+    nextVersion?: string;
+    error?: string;
+  } | null>(null);
+
+  const electron = isElectron();
+
+  useEffect(() => {
+    if (electron) {
+      getAppVersion().then((v) => v && setAppVersion(v));
+      onUpdateStatus((status) => setUpdateStatus(status));
+    }
+  }, [electron]);
 
   const visibleItems = navItems.filter(
     (item) => !item.adminOnly || user?.role === "admin",
   );
+
+  const badge = updateStatus?.status === "ready"
+    ? { text: "Update ready", color: "bg-green-500", action: true }
+    : updateStatus?.status === "downloading"
+    ? { text: "Updating", color: "bg-amber-500", action: false }
+    : updateStatus?.status === "error"
+    ? { text: "Update error", color: "bg-red-500", action: false }
+    : null;
 
   return (
     <div className="min-h-screen bg-zinc-50 flex">
@@ -128,7 +152,34 @@ export default function Layout({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <div className="p-3 border-t border-zinc-800">
+        <div className="p-3 border-t border-zinc-200">
+          {electron && appVersion && (
+            <button
+              onClick={() => {
+                if (updateStatus?.status === "ready") {
+                  if (window.electronAPI) {
+                    window.electronAPI.checkForUpdates();
+                  }
+                }
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded text-xs text-zinc-500 hover:text-zinc-700 hover:bg-zinc-50 w-full transition-colors"
+              disabled={updateStatus?.status === "downloading"}
+            >
+              <span>v{appVersion}</span>
+              {badge && (
+                <span
+                  className={cn(
+                    "ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium text-white",
+                    badge.color,
+                  )}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse" />
+                  {badge.text}
+                </span>
+              )}
+            </button>
+          )}
+
           <div className="flex items-center gap-2 px-3 py-2 mb-2">
             <div className="w-7 h-7 bg-zinc-100 rounded-full flex items-center justify-center text-xs text-zinc-700 font-medium uppercase">
               {user?.username?.[0]}

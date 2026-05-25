@@ -6,6 +6,7 @@ publish:
   provider: github
   owner: TgCharlie
   repo: TrendWorklist
+  releaseType: release
 
 directories:
   buildResources: build

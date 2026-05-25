@@ -74,6 +74,16 @@ export default function CutlistsPage() {
     initialData: undefined,
   });
 
+  const { data: foundProject } = useQuery<Project | null>({
+    queryKey: ["project-by-id", foundCutlist?.projectId],
+    queryFn: (): Promise<Project | null> =>
+      (apiFetch(`/projects/${encodeURIComponent(foundCutlist!.projectId)}`) as Promise<Project>).catch(() => null),
+    enabled: mode === "search" && !!foundCutlist?.projectId,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    initialData: undefined,
+  });
+
   const {
     data: projects = [],
     isLoading: projectsLoading,
@@ -176,19 +186,32 @@ export default function CutlistsPage() {
 
           {!searching && !cutlistSearchError && foundCutlist && (
             <div className="overflow-hidden rounded-lg border border-zinc-200">
-              <div className="bg-zinc-50 px-4 py-3 border-b border-zinc-200">
+              <div className="bg-zinc-50 px-4 py-3 border-b border-zinc-200 flex items-center gap-3 flex-wrap">
                 <span className="font-mono text-blue-600 font-bold text-sm">
                   #{foundCutlist.cutlistId || foundCutlist.cutlistNumber}
                 </span>
-                {foundCutlist.projectName && (
-                  <span className="text-zinc-500 text-xs ml-3">{foundCutlist.projectName}</span>
-                )}
                 {foundCutlist.status && (
-                  <Badge variant="outline" className="border-zinc-300 text-zinc-600 text-xs ml-2">
+                  <Badge variant="outline" className="border-zinc-300 text-zinc-600 text-xs">
                     {foundCutlist.status}
                   </Badge>
                 )}
               </div>
+
+              {foundProject && (
+                <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex items-start gap-3">
+                  <svg className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  <div className="min-w-0">
+                    <span className="font-mono text-blue-700 font-bold text-xs">{foundProject.projectNumber}</span>
+                    <span className="text-zinc-700 text-sm ml-2">{foundProject.address}</span>
+                    {foundProject.status && (
+                      <span className="text-zinc-400 text-xs ml-2">· {foundProject.status}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-white border-b border-zinc-100">
@@ -201,7 +224,6 @@ export default function CutlistsPage() {
                     { label: "Item", value: foundCutlist.item },
                     { label: "Memo", value: foundCutlist.memo },
                     { label: "Created by", value: foundCutlist.createdBy || foundCutlist.lister },
-                    { label: "Project ID", value: foundCutlist.projectId },
                     { label: "Status", value: foundCutlist.status },
                   ]
                     .filter((row) => row.value)

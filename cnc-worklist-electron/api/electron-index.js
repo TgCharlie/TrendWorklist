@@ -53384,12 +53384,13 @@ router5.get("/", requireAuth, async (req, res) => {
   const otype = typeof req.query.otype === "string" ? req.query.otype.trim() : "";
   const terms = search.split(/\s+/).filter(Boolean);
   const conditions = [
-    ...terms.length ? terms.map(
-      (term) => or(
-        ilike(stockbookTable.pcode, `%${term}%`),
-        ilike(stockbookTable.description, `%${term}%`)
-      )
-    ) : [],
+    ...terms.length ? terms.map((term) => {
+      const pattern = `%${term.toLowerCase()}%`;
+      return or(
+        sql`LOWER(${stockbookTable.pcode}) LIKE ${pattern}`,
+        sql`LOWER(${stockbookTable.description}) LIKE ${pattern}`
+      );
+    }) : [],
     ...otype ? [eq(stockbookTable.otype, otype)] : []
   ];
   const rows = conditions.length ? await db.select().from(stockbookTable).where(and(...conditions)).orderBy(stockbookTable.pcode) : await db.select().from(stockbookTable).orderBy(stockbookTable.pcode);

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
-import { and, or, ilike, eq, isNotNull, notInArray, sql } from "drizzle-orm";
+import { and, or, eq, isNotNull, notInArray, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
 import { getAllStockbook, debugStockbookFind, fmTextTimestampToMs, setStockTracked, fetchFMImage } from "../lib/filemaker";
 import { getSetting, setSetting } from "../lib/settings";
@@ -25,12 +25,13 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
 
   const conditions = [
     ...(terms.length
-      ? terms.map((term) =>
-          or(
-            ilike(stockbookTable.pcode, `%${term}%`),
-            ilike(stockbookTable.description, `%${term}%`),
-          ),
-        )
+      ? terms.map((term) => {
+          const pattern = `%${term.toLowerCase()}%`;
+          return or(
+            sql`LOWER(${stockbookTable.pcode}) LIKE ${pattern}`,
+            sql`LOWER(${stockbookTable.description}) LIKE ${pattern}`,
+          );
+        })
       : []),
     ...(otype ? [eq(stockbookTable.otype, otype)] : []),
   ];

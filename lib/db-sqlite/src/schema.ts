@@ -155,6 +155,8 @@ export const stockbookTable = sqliteTable("stockbook", {
   otype: text("otype"),
   project: text("project"),
   pid: text("pid"),
+  image: text("image"),
+  tagStockTracked: integer("tag_stock_tracked").notNull().default(1),
   lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
   updatedAt: integer("updated_at", { mode: "timestamp" })
     .notNull()

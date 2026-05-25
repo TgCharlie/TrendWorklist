@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, stockbookTable } from "@workspace/db";
-import { and, or, ilike, eq, isNotNull, sql } from "drizzle-orm";
+import { and, or, ilike, eq, isNotNull, notInArray, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth-middleware";
 import { getAllStockbook, debugStockbookFind, fmTextTimestampToMs, setStockTracked, fetchFMImage } from "../lib/filemaker";
 import { getSetting, setSetting } from "../lib/settings";
@@ -136,19 +136,22 @@ async function syncStockbook(
 
   try {
     for (const r of toUpsert) {
+      const qtyOnHand = Number.isFinite(r.qtyOnHand) ? r.qtyOnHand : 0;
+      const cost = Number.isFinite(r.cost) ? r.cost : null;
+      const costSub = Number.isFinite(r.costSub) ? r.costSub : null;
       await db
         .insert(stockbookTable)
         .values({
           pcode: r.pcode,
           description: r.description || "",
-          qtyOnHand: Number.isFinite(r.qtyOnHand) ? r.qtyOnHand : 0,
-          cost: Number.isFinite(r.cost) ? r.cost : null,
-          costSub: Number.isFinite(r.costSub) ? r.costSub : null,
-          unit: r.unit,
-          location: r.location,
-          otype: r.otype,
-          project: r.project,
-          pid: r.pid,
+          qtyOnHand,
+          cost,
+          costSub,
+          unit: r.unit ?? null,
+          location: r.location ?? null,
+          otype: r.otype ?? null,
+          project: r.project ?? null,
+          pid: r.pid ?? null,
           image: r.image ?? null,
           tagStockTracked: r.tracked,
           lastSyncedAt: now,
@@ -157,19 +160,19 @@ async function syncStockbook(
         .onConflictDoUpdate({
           target: stockbookTable.pcode,
           set: {
-            description: sql`excluded.description`,
-            qtyOnHand: sql`excluded.qty_on_hand`,
-            cost: sql`excluded.cost`,
-            costSub: sql`excluded.cost_sub`,
-            unit: sql`excluded.unit`,
-            location: sql`excluded.location`,
-            otype: sql`excluded.otype`,
-            project: sql`excluded.project`,
-            pid: sql`excluded.pid`,
-            image: sql`excluded.image`,
-            tagStockTracked: sql`excluded.tag_stock_tracked`,
-            lastSyncedAt: sql`excluded.last_synced_at`,
-            updatedAt: sql`excluded.updated_at`,
+            description: r.description || "",
+            qtyOnHand,
+            cost,
+            costSub,
+            unit: r.unit ?? null,
+            location: r.location ?? null,
+            otype: r.otype ?? null,
+            project: r.project ?? null,
+            pid: r.pid ?? null,
+            image: r.image ?? null,
+            tagStockTracked: r.tracked,
+            lastSyncedAt: now,
+            updatedAt: now,
           },
         });
 
@@ -193,12 +196,15 @@ async function syncStockbook(
   try {
     const syncedPcodes = deduped.map((r) => r.pcode);
     if (syncedPcodes.length > 0) {
-      await db.execute(sql`
-        UPDATE stockbook
-        SET tag_stock_tracked = false, updated_at = NOW()
-        WHERE tag_stock_tracked = true
-          AND pcode != ALL(${syncedPcodes})
-      `);
+      await db
+        .update(stockbookTable)
+        .set({ tagStockTracked: false, updatedAt: now })
+        .where(
+          and(
+            eq(stockbookTable.tagStockTracked, true),
+            notInArray(stockbookTable.pcode, syncedPcodes),
+          ),
+        );
     }
   } catch (e) {
     logger.warn({ e }, "Could not clear untracked stockbook records after sync");

@@ -36505,10 +36505,10 @@ var PgEnumColumn = class extends PgColumn {
 // ../../node_modules/.pnpm/drizzle-orm@0.45.2_@types+better-sqlite3@7.6.13_@types+pg@8.18.0_better-sqlite3@11.10.0_pg@8.20.0/node_modules/drizzle-orm/subquery.js
 var Subquery = class {
   static [entityKind] = "Subquery";
-  constructor(sql2, fields, alias, isWith = false, usedTables = []) {
+  constructor(sql3, fields, alias, isWith = false, usedTables = []) {
     this._ = {
       brand: "Subquery",
-      sql: sql2,
+      sql: sql3,
       selectedFields: fields,
       alias,
       isWith,
@@ -36844,19 +36844,19 @@ function sql(strings, ...params) {
   }
   return new SQL(queryChunks);
 }
-((sql2) => {
+((sql22) => {
   function empty() {
     return new SQL([]);
   }
-  sql2.empty = empty;
+  sql22.empty = empty;
   function fromList(list) {
     return new SQL(list);
   }
-  sql2.fromList = fromList;
+  sql22.fromList = fromList;
   function raw(str) {
     return new SQL([new StringChunk(str)]);
   }
-  sql2.raw = raw;
+  sql22.raw = raw;
   function join(chunks, separator) {
     const result = [];
     for (const [i, chunk] of chunks.entries()) {
@@ -36867,24 +36867,24 @@ function sql(strings, ...params) {
     }
     return new SQL(result);
   }
-  sql2.join = join;
+  sql22.join = join;
   function identifier(value) {
     return new Name(value);
   }
-  sql2.identifier = identifier;
+  sql22.identifier = identifier;
   function placeholder2(name2) {
     return new Placeholder(name2);
   }
-  sql2.placeholder = placeholder2;
+  sql22.placeholder = placeholder2;
   function param2(value, encoder) {
     return new Param(value, encoder);
   }
-  sql2.param = param2;
+  sql22.param = param2;
 })(sql || (sql = {}));
 ((SQL2) => {
   class Aliased {
-    constructor(sql2, fieldAlias) {
-      this.sql = sql2;
+    constructor(sql22, fieldAlias) {
+      this.sql = sql22;
       this.fieldAlias = fieldAlias;
     }
     static [entityKind] = "SQL.Aliased";
@@ -38976,8 +38976,8 @@ var SQLiteDialect = class {
     const onConflictSql = onConflict?.length ? sql.join(onConflict) : void 0;
     return sql`${withSql}insert into ${table} ${insertOrder} ${valuesSql}${onConflictSql}${returningSql}`;
   }
-  sqlToQuery(sql2, invokeSource) {
-    return sql2.toQuery({
+  sqlToQuery(sql22, invokeSource) {
+    return sql22.toQuery({
       casing: this.casing,
       escapeName: this.escapeName,
       escapeParam: this.escapeParam,
@@ -40898,8 +40898,8 @@ var NoopCache = class extends Cache {
   async onMutate(_params) {
   }
 };
-async function hashQuery(sql2, params) {
-  const dataToHash = `${sql2}-${JSON.stringify(params)}`;
+async function hashQuery(sql3, params) {
+  const dataToHash = `${sql3}-${JSON.stringify(params)}`;
   const encoder = new TextEncoder();
   const data = encoder.encode(dataToHash);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -41083,8 +41083,8 @@ var SQLiteSession = class {
   values(query) {
     return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), void 0, "run", false).values();
   }
-  async count(sql2) {
-    const result = await this.values(sql2);
+  async count(sql3) {
+    const result = await this.values(sql3);
     return result[0][0];
   }
   /** @internal */
@@ -52790,6 +52790,8 @@ var stockbookTable = sqliteTable("stockbook", {
   otype: text("otype"),
   project: text("project"),
   pid: text("pid"),
+  image: text("image"),
+  tagStockTracked: integer("tag_stock_tracked").notNull().default(1),
   lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => /* @__PURE__ */ new Date())
 });
@@ -53453,17 +53455,20 @@ async function syncStockbook(req, res, progressInterval = 50) {
   const total = toUpsert.length;
   try {
     for (const r of toUpsert) {
+      const qtyOnHand = Number.isFinite(r.qtyOnHand) ? r.qtyOnHand : 0;
+      const cost = Number.isFinite(r.cost) ? r.cost : null;
+      const costSub = Number.isFinite(r.costSub) ? r.costSub : null;
       await db.insert(stockbookTable).values({
         pcode: r.pcode,
         description: r.description || "",
-        qtyOnHand: Number.isFinite(r.qtyOnHand) ? r.qtyOnHand : 0,
-        cost: Number.isFinite(r.cost) ? r.cost : null,
-        costSub: Number.isFinite(r.costSub) ? r.costSub : null,
-        unit: r.unit,
-        location: r.location,
-        otype: r.otype,
-        project: r.project,
-        pid: r.pid,
+        qtyOnHand,
+        cost,
+        costSub,
+        unit: r.unit ?? null,
+        location: r.location ?? null,
+        otype: r.otype ?? null,
+        project: r.project ?? null,
+        pid: r.pid ?? null,
         image: r.image ?? null,
         tagStockTracked: r.tracked,
         lastSyncedAt: now,
@@ -53471,19 +53476,19 @@ async function syncStockbook(req, res, progressInterval = 50) {
       }).onConflictDoUpdate({
         target: stockbookTable.pcode,
         set: {
-          description: sql`excluded.description`,
-          qtyOnHand: sql`excluded.qty_on_hand`,
-          cost: sql`excluded.cost`,
-          costSub: sql`excluded.cost_sub`,
-          unit: sql`excluded.unit`,
-          location: sql`excluded.location`,
-          otype: sql`excluded.otype`,
-          project: sql`excluded.project`,
-          pid: sql`excluded.pid`,
-          image: sql`excluded.image`,
-          tagStockTracked: sql`excluded.tag_stock_tracked`,
-          lastSyncedAt: sql`excluded.last_synced_at`,
-          updatedAt: sql`excluded.updated_at`
+          description: r.description || "",
+          qtyOnHand,
+          cost,
+          costSub,
+          unit: r.unit ?? null,
+          location: r.location ?? null,
+          otype: r.otype ?? null,
+          project: r.project ?? null,
+          pid: r.pid ?? null,
+          image: r.image ?? null,
+          tagStockTracked: r.tracked,
+          lastSyncedAt: now,
+          updatedAt: now
         }
       });
       saved++;
@@ -53501,12 +53506,12 @@ async function syncStockbook(req, res, progressInterval = 50) {
   try {
     const syncedPcodes = deduped.map((r) => r.pcode);
     if (syncedPcodes.length > 0) {
-      await db.execute(sql`
-        UPDATE stockbook
-        SET tag_stock_tracked = false, updated_at = NOW()
-        WHERE tag_stock_tracked = true
-          AND pcode != ALL(${syncedPcodes})
-      `);
+      await db.update(stockbookTable).set({ tagStockTracked: false, updatedAt: now }).where(
+        and(
+          eq(stockbookTable.tagStockTracked, true),
+          notInArray(stockbookTable.pcode, syncedPcodes)
+        )
+      );
     }
   } catch (e) {
     logger.warn({ e }, "Could not clear untracked stockbook records after sync");
@@ -54528,9 +54533,9 @@ function createTables() {
     "ALTER TABLE stockbook ADD COLUMN image TEXT",
     "ALTER TABLE stockbook ADD COLUMN tag_stock_tracked INTEGER NOT NULL DEFAULT 1"
   ];
-  for (const sql2 of stockbookMigrations) {
+  for (const sql3 of stockbookMigrations) {
     try {
-      client.exec(sql2);
+      client.exec(sql3);
     } catch {
     }
   }

@@ -107,21 +107,27 @@ function createTables(): void {
     );
   `);
 
-  const stockbookMigrations = [
-    "ALTER TABLE stockbook ADD COLUMN cost REAL",
-    "ALTER TABLE stockbook ADD COLUMN cost_sub REAL",
-    "ALTER TABLE stockbook ADD COLUMN otype TEXT",
-    "ALTER TABLE stockbook ADD COLUMN project TEXT",
-    "ALTER TABLE stockbook ADD COLUMN pid TEXT",
-    "ALTER TABLE stockbook ADD COLUMN image TEXT",
-    "ALTER TABLE stockbook ADD COLUMN tag_stock_tracked INTEGER NOT NULL DEFAULT 1",
-  ];
-  for (const sql of stockbookMigrations) {
-    try {
-      client.exec(sql);
-    } catch {
+  // Safe migration helper — only ALTER TABLE if the column is missing.
+  function addColumnIfMissing(table: string, column: string, def: string) {
+    const info = client.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    const exists = info.some((c) => c.name === column);
+    if (!exists) {
+      try {
+        client.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
+        logger.info(`Migration: added column ${table}.${column}`);
+      } catch (err) {
+        logger.error({ err }, `Migration failed: could not add ${table}.${column}`);
+      }
     }
   }
+
+  addColumnIfMissing("stockbook", "cost", "REAL");
+  addColumnIfMissing("stockbook", "cost_sub", "REAL");
+  addColumnIfMissing("stockbook", "otype", "TEXT");
+  addColumnIfMissing("stockbook", "project", "TEXT");
+  addColumnIfMissing("stockbook", "pid", "TEXT");
+  addColumnIfMissing("stockbook", "image", "TEXT");
+  addColumnIfMissing("stockbook", "tag_stock_tracked", "INTEGER NOT NULL DEFAULT 1");
 }
 
 export async function seedDatabase(): Promise<void> {

@@ -1,6 +1,6 @@
 {
   "name": "cnc-worklist-electron",
-  "version": "1.0.10",
+  "version": "1.0.12",
   "description": "CNC Worklist Manager — self-contained desktop app",
   "author": "Trendgosa",
   "repository": {

@@ -153,7 +153,7 @@ async function syncStockbook(
           project: r.project ?? null,
           pid: r.pid ?? null,
           image: r.image ?? null,
-          tagStockTracked: r.tracked,
+          tagStockTracked: r.tracked ? 1 : 0,
           lastSyncedAt: now,
           updatedAt: now,
         })
@@ -170,9 +170,9 @@ async function syncStockbook(
             project: r.project ?? null,
             pid: r.pid ?? null,
             image: r.image ?? null,
-            tagStockTracked: r.tracked,
-            lastSyncedAt: now,
-            updatedAt: now,
+            tagStockTracked: r.tracked ? 1 : 0,
+            lastSyncedAt: sql`excluded.last_synced_at`,
+            updatedAt: sql`excluded.updated_at`,
           },
         });
 

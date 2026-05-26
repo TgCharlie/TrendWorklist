@@ -148,7 +148,7 @@ function CutlistStep({
     const raw = state.cutlistInput.trim();
     if (!raw) return;
 
-    const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    const ids = raw.split(/[,.]/).map((s) => s.trim()).filter(Boolean);
     if (ids.length === 0) return;
 
     setIsLooking(true);
@@ -228,7 +228,7 @@ function CutlistStep({
       <div className="space-y-1.5">
         <div className="flex items-baseline justify-between">
           <Label className="text-zinc-700">Cutlist Numbers</Label>
-          <span className="text-zinc-400 text-xs">Separate multiple numbers with commas</span>
+          <span className="text-zinc-400 text-xs">Separate multiple numbers with commas or periods</span>
         </div>
         <div className="flex gap-2">
           <Input

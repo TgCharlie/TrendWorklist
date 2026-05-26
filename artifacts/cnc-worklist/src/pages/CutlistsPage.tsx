@@ -186,13 +186,6 @@ export default function CutlistsPage() {
 
           {!searching && !cutlistSearchError && foundCutlist && (
             <div className="overflow-hidden rounded-lg border border-zinc-200">
-              {/* TEMP DEBUG — remove after confirming field name */}
-              <div className="bg-yellow-50 px-4 py-2 border-b border-yellow-200 text-xs font-mono text-yellow-800 break-all">
-                {Object.entries(foundCutlist as unknown as Record<string, unknown>)
-                  .filter(([k]) => k.toLowerCase().includes("project") || k.toLowerCase().includes("name"))
-                  .map(([k, v]) => `${k}: "${v}"`)
-                  .join(" | ")}
-              </div>
               <div className="bg-zinc-50 px-4 py-3 border-b border-zinc-200 flex items-center gap-3 flex-wrap">
                 <span className="font-mono text-blue-600 font-bold text-sm">
                   #{foundCutlist.cutlistId || foundCutlist.cutlistNumber}

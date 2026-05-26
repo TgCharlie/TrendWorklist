@@ -233,7 +233,7 @@ export async function findCutlistsByProject(projectId: string): Promise<Array<Re
         item: (r.fieldData["Item"] ?? "") as string,
         memo: (r.fieldData["MEMO"] ?? "") as string,
         createdBy: (r.fieldData["CreatedBy"] ?? "") as string,
-        projectName: (r.fieldData["ProjectName"] ?? "") as string,
+        projectName: (r.fieldData["LIST_Cutlist Tracking_Project::ProjectName"] ?? "") as string,
         status: (r.fieldData["Status"] ?? "") as string,
         ...r.fieldData,
       };
@@ -260,7 +260,7 @@ export async function findCutlistById(cutlistId: string): Promise<Record<string,
       item: (r.fieldData["Item"] ?? "") as string,
       memo: (r.fieldData["MEMO"] ?? "") as string,
       createdBy: (r.fieldData["CreatedBy"] ?? "") as string,
-      projectName: (r.fieldData["ProjectName"] ?? "") as string,
+      projectName: (r.fieldData["LIST_Cutlist Tracking_Project::ProjectName"] ?? "") as string,
       status: (r.fieldData["Status"] ?? "") as string,
       ...r.fieldData,
     };

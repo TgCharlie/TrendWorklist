@@ -578,15 +578,24 @@ export default function WorklistDetailPage() {
                     </td>
                     <td className="px-4 py-2.5 text-zinc-800">{item.displayName}</td>
                     <td className="px-4 py-2.5 text-zinc-800 text-right">{item.quantity}</td>
-                    <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
-                      {item.length ?? "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
-                      {item.width ?? "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
-                      {item.thickness ?? "—"}
-                    </td>
+                    {(() => {
+                      const parsed = (item.length == null || item.width == null || item.thickness == null)
+                        ? parseDimsFromDescription(item.displayName ?? "")
+                        : null;
+                      return (
+                        <>
+                          <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
+                            {item.length ?? parsed?.length ?? "—"}
+                          </td>
+                          <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
+                            {item.width ?? parsed?.width ?? "—"}
+                          </td>
+                          <td className="px-4 py-2.5 text-zinc-600 text-right font-mono text-xs">
+                            {item.thickness ?? parsed?.thickness ?? "—"}
+                          </td>
+                        </>
+                      );
+                    })()}
                     <td className="px-2 py-1.5">
                       {editingNoteId === item.id ? (
                         <input

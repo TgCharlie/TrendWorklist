@@ -429,26 +429,49 @@ function MaterialsStep({
       <div className="border border-zinc-200 rounded-lg p-3 space-y-3">
         <p className="text-xs font-medium text-zinc-600 uppercase tracking-wide">Add Material Row</p>
 
-        {/* Material library picker */}
+        {/* Material library picker + Qty stepper */}
         {materials.length > 0 && (
-          <Select
-            onValueChange={(id) => {
-              const mat = materials.find((m) => String(m.id) === id);
-              if (mat) selectMaterial(mat);
-            }}
-          >
-            <SelectTrigger className="bg-white border-zinc-300 text-zinc-950 text-sm">
-              <SelectValue placeholder="Pick from materials library…" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border-zinc-200">
-              {materials.map((m) => (
-                <SelectItem key={m.id} value={String(m.id)}>
-                  <span className="font-mono text-blue-600 text-xs mr-2">{m.pcode}</span>
-                  {m.displayName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select
+              onValueChange={(id) => {
+                const mat = materials.find((m) => String(m.id) === id);
+                if (mat) selectMaterial(mat);
+              }}
+            >
+              <SelectTrigger className="bg-white border-zinc-300 text-zinc-950 text-sm flex-1">
+                <SelectValue placeholder="Pick from materials library…" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-zinc-200">
+                {materials.map((m) => (
+                  <SelectItem key={m.id} value={String(m.id)}>
+                    <span className="font-mono text-blue-600 text-xs mr-2">{m.pcode}</span>
+                    {m.displayName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center border border-zinc-300 rounded-md bg-white overflow-hidden flex-shrink-0">
+              <span className="px-3 text-sm text-zinc-900 min-w-[2.5rem] text-center select-none">
+                {rowForm.quantity}
+              </span>
+              <div className="flex flex-col border-l border-zinc-200">
+                <button
+                  type="button"
+                  onClick={() => setRowForm((f) => ({ ...f, quantity: f.quantity + 1 }))}
+                  className="px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200 text-base leading-none font-medium"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRowForm((f) => ({ ...f, quantity: Math.max(1, f.quantity - 1) }))}
+                  className="px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200 text-base leading-none font-medium border-t border-zinc-200"
+                >
+                  −
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="grid grid-cols-3 gap-2">
@@ -472,6 +495,34 @@ function MaterialsStep({
           </div>
         </div>
 
+        {/* Qty stepper (shown when no materials library, so always visible for manual entry) */}
+        {!materials.length && (
+          <div className="flex items-center gap-3">
+            <Label className="text-zinc-600 text-xs">Qty</Label>
+            <div className="flex items-center border border-zinc-300 rounded-md bg-white overflow-hidden">
+              <span className="px-3 text-sm text-zinc-900 min-w-[2.5rem] text-center select-none">
+                {rowForm.quantity}
+              </span>
+              <div className="flex flex-col border-l border-zinc-200">
+                <button
+                  type="button"
+                  onClick={() => setRowForm((f) => ({ ...f, quantity: f.quantity + 1 }))}
+                  className="px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200 text-base leading-none font-medium"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRowForm((f) => ({ ...f, quantity: Math.max(1, f.quantity - 1) }))}
+                  className="px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200 text-base leading-none font-medium border-t border-zinc-200"
+                >
+                  −
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Live stock */}
         {rowForm.pcode.trim() && (
           <div className="flex items-center gap-2 text-xs">
@@ -494,36 +545,6 @@ function MaterialsStep({
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-1">
-            <Label className="text-zinc-600 text-xs">Qty</Label>
-            <Input
-              type="number"
-              min={1}
-              value={rowForm.quantity}
-              onChange={(e) => setRowForm((f) => ({ ...f, quantity: Number(e.target.value) }))}
-              className="bg-white border-zinc-300 text-zinc-950 text-sm h-8"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-zinc-600 text-xs">Length (mm)</Label>
-            <Input
-              value={rowForm.length}
-              onChange={(e) => setRowForm((f) => ({ ...f, length: e.target.value }))}
-              placeholder="2400"
-              className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 text-sm h-8"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-zinc-600 text-xs">Width (mm)</Label>
-            <Input
-              value={rowForm.width}
-              onChange={(e) => setRowForm((f) => ({ ...f, width: e.target.value }))}
-              placeholder="1200"
-              className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400 text-sm h-8"
-            />
-          </div>
-        </div>
 
         <Button
           size="sm"
@@ -553,11 +574,6 @@ function MaterialsStep({
                 </span>
                 <span className="text-zinc-700 text-xs flex-1 truncate">{row.displayName}</span>
                 <span className="text-zinc-500 text-xs flex-shrink-0">×{row.quantity}</span>
-                {(row.length || row.width) && (
-                  <span className="text-zinc-400 text-xs flex-shrink-0 font-mono">
-                    {row.length || "—"} × {row.width || "—"}
-                  </span>
-                )}
                 <button
                   type="button"
                   onClick={() => removeRow(row.rowId)}

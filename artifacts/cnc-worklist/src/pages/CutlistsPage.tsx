@@ -16,7 +16,8 @@ import {
 interface Project {
   projectId: string;
   projectNumber: string;
-  address: string;
+  projectName?: string;
+  address?: string;
   date?: string | null;
   status?: string | null;
 }
@@ -190,8 +191,10 @@ export default function CutlistsPage() {
                 <span className="font-mono text-blue-600 font-bold text-sm">
                   #{foundCutlist.cutlistId || foundCutlist.cutlistNumber}
                 </span>
-                {foundCutlist.projectName && (
-                  <span className="text-zinc-800 text-sm font-medium">{foundCutlist.projectName}</span>
+                {(foundCutlist.projectName || foundProject?.projectName) && (
+                  <span className="text-zinc-800 text-sm font-medium">
+                    {foundCutlist.projectName || foundProject?.projectName}
+                  </span>
                 )}
                 {foundCutlist.status && (
                   <Badge variant="outline" className="border-zinc-300 text-zinc-600 text-xs">
@@ -206,7 +209,7 @@ export default function CutlistsPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
                   <span className="font-mono text-blue-700 font-medium">{foundProject.projectNumber}</span>
-                  <span className="ml-1">{foundProject.address}</span>
+                  {foundProject.address && <span className="ml-1">{foundProject.address}</span>}
                   {foundProject.status && (
                     <span className="ml-1">· {foundProject.status}</span>
                   )}

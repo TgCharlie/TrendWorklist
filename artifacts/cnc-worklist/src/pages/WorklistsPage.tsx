@@ -43,6 +43,23 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
+const cutlistCache = new Map<string, Record<string, unknown>>();
+const projectCache = new Map<string, Record<string, unknown>>();
+
+async function fetchCutlistCached(id: string): Promise<Record<string, unknown>> {
+  if (cutlistCache.has(id)) return cutlistCache.get(id)!;
+  const result = (await getCutlist(id)) as Record<string, unknown>;
+  cutlistCache.set(id, result);
+  return result;
+}
+
+async function fetchProjectCached(projectId: string): Promise<Record<string, unknown>> {
+  if (projectCache.has(projectId)) return projectCache.get(projectId)!;
+  const result = (await getProject(projectId)) as Record<string, unknown>;
+  projectCache.set(projectId, result);
+  return result;
+}
+
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-zinc-100 text-zinc-700 border border-zinc-200",
   active: "bg-blue-50 text-blue-700 border border-blue-200",
@@ -137,40 +154,47 @@ function CutlistStep({
     setIsLooking(true);
     setLookupError(null);
 
-    const errors: string[] = [];
-    let entries = [...state.cutlistEntries];
-    let resolvedProjectId = state.resolvedProjectId;
-    let resolvedProjectName = state.resolvedProjectName;
+    const existingIds = new Set(state.cutlistEntries.map((e) => e.cutlistId));
+    const newIds = ids.filter((id) => !existingIds.has(id));
 
-    for (const id of ids) {
-      if (entries.some((e) => e.cutlistId === id)) continue;
-      try {
-        const cutlist = await getCutlist(id);
+    const results = await Promise.allSettled(
+      newIds.map(async (id) => {
+        const cutlist = await fetchCutlistCached(id);
         const projectId = (cutlist.projectId as string) ?? "";
         let projectName = (cutlist.projectName as string) ?? "";
         if (!projectName && projectId) {
           try {
-            const project = await getProject(projectId);
+            const project = await fetchProjectCached(projectId);
             projectName = (project.projectName as string) ?? "";
           } catch {
             // ignore — project name is best-effort
           }
         }
-        const entry: CutlistEntry = {
+        return {
           cutlistId: String(cutlist.cutlistId ?? cutlist.id ?? id),
           item: (cutlist.item as string) ?? "",
           memo: (cutlist.memo as string) ?? "",
           createdBy: (cutlist.createdBy as string) ?? "",
           projectId,
           projectName,
-        };
-        entries = [...entries, entry];
-        resolvedProjectId = resolvedProjectId || entry.projectId;
-        resolvedProjectName = resolvedProjectName || entry.projectName;
-      } catch {
-        errors.push(id);
+        } satisfies CutlistEntry;
+      })
+    );
+
+    const errors: string[] = [];
+    let entries = [...state.cutlistEntries];
+    let resolvedProjectId = state.resolvedProjectId;
+    let resolvedProjectName = state.resolvedProjectName;
+
+    results.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        entries = [...entries, result.value];
+        resolvedProjectId = resolvedProjectId || result.value.projectId;
+        resolvedProjectName = resolvedProjectName || result.value.projectName;
+      } else {
+        errors.push(newIds[i]);
       }
-    }
+    });
 
     setState({
       ...state,

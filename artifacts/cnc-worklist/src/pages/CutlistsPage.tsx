@@ -190,6 +190,9 @@ export default function CutlistsPage() {
                 <span className="font-mono text-blue-600 font-bold text-sm">
                   #{foundCutlist.cutlistId || foundCutlist.cutlistNumber}
                 </span>
+                {foundCutlist.projectName && (
+                  <span className="text-zinc-800 text-sm font-medium">{foundCutlist.projectName}</span>
+                )}
                 {foundCutlist.status && (
                   <Badge variant="outline" className="border-zinc-300 text-zinc-600 text-xs">
                     {foundCutlist.status}
@@ -197,29 +200,16 @@ export default function CutlistsPage() {
                 )}
               </div>
 
-              {(foundCutlist.projectName || foundProject) && (
-                <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex items-start gap-3">
-                  <svg className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              {foundProject && (
+                <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-2 text-xs text-zinc-500">
+                  <svg className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
-                  <div className="min-w-0">
-                    {foundCutlist.projectName && (
-                      <span className="text-blue-800 text-sm font-medium block">{foundCutlist.projectName}</span>
-                    )}
-                    <div className="text-zinc-500 text-xs mt-0.5">
-                      {foundProject ? (
-                        <>
-                          <span className="font-mono text-blue-700 font-medium">{foundProject.projectNumber}</span>
-                          <span className="ml-2">{foundProject.address}</span>
-                          {foundProject.status && (
-                            <span className="ml-2">· {foundProject.status}</span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="font-mono text-blue-700 font-medium">PID {foundCutlist.projectId}</span>
-                      )}
-                    </div>
-                  </div>
+                  <span className="font-mono text-blue-700 font-medium">{foundProject.projectNumber}</span>
+                  <span className="ml-1">{foundProject.address}</span>
+                  {foundProject.status && (
+                    <span className="ml-1">· {foundProject.status}</span>
+                  )}
                 </div>
               )}
 

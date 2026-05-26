@@ -513,12 +513,15 @@ function MaterialsStep({
                 <SelectValue placeholder="Pick from materials library…" />
               </SelectTrigger>
               <SelectContent className="bg-white border-zinc-200">
-                {materials.map((m) => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    <span className="font-mono text-blue-600 text-xs mr-2">{m.pcode}</span>
-                    {m.displayName}
-                  </SelectItem>
-                ))}
+                {materials.map((m) => {
+                  const alreadyAdded = state.materialRows.some((r) => r.pcode === m.pcode);
+                  return (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      <span className={`font-mono text-xs mr-2 ${alreadyAdded ? "text-red-600" : "text-blue-600"}`}>{m.pcode}</span>
+                      <span className={alreadyAdded ? "text-red-600" : ""}>{m.displayName}</span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             <div className="flex items-stretch border border-zinc-300 rounded-md bg-white overflow-hidden flex-shrink-0 h-10">

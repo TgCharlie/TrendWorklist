@@ -207,11 +207,10 @@ function CutlistStep({
 
       {state.resolvedProjectId && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm">
-          <p className="text-blue-500 text-xs font-medium uppercase tracking-wide">Project (auto-detected)</p>
+          <p className="text-blue-500 text-xs font-medium uppercase tracking-wide">
+            Project (auto-detected){state.resolvedProjectName ? ` — ${state.resolvedProjectName}` : ""}
+          </p>
           <p className="font-mono font-bold text-blue-900">{state.resolvedProjectId}</p>
-          {state.resolvedProjectName && (
-            <p className="text-blue-700 text-xs truncate">{state.resolvedProjectName}</p>
-          )}
         </div>
       )}
 
@@ -849,7 +848,7 @@ export default function WorklistsPage() {
           if (!open) setShowCreate(false);
         }}
       >
-        <DialogContent className="bg-white border-zinc-200 text-zinc-950 max-w-lg">
+        <DialogContent className="bg-white border-zinc-200 text-zinc-950 max-w-2xl">
           <DialogHeader>
             <DialogTitle>New Worklist</DialogTitle>
           </DialogHeader>

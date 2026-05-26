@@ -10,6 +10,7 @@ import {
   useListMaterials,
   useListStockbook,
   getCutlist,
+  getProject,
   useGetCutlist,
   getListWorklistsQueryKey,
   getListMaterialsQueryKey,
@@ -137,13 +138,23 @@ function CutlistStep({
     setLookupError(null);
     try {
       const cutlist = await getCutlist(id);
+      const projectId = (cutlist.projectId as string) ?? "";
+      let projectName = (cutlist.projectName as string) ?? "";
+      if (!projectName && projectId) {
+        try {
+          const project = await getProject(projectId);
+          projectName = (project.projectName as string) ?? "";
+        } catch {
+          // ignore — project name is best-effort
+        }
+      }
       const entry: CutlistEntry = {
         cutlistId: String(cutlist.cutlistId ?? cutlist.id ?? id),
         item: (cutlist.item as string) ?? "",
         memo: (cutlist.memo as string) ?? "",
         createdBy: (cutlist.createdBy as string) ?? "",
-        projectId: (cutlist.projectId as string) ?? "",
-        projectName: (cutlist.projectName as string) ?? "",
+        projectId,
+        projectName,
       };
       const entries = [...state.cutlistEntries, entry];
       setState({

@@ -1206,9 +1206,11 @@ components:
         quantity:
           type: integer
         length:
-          type: ["integer", "null"]
+          type: ["number", "null"]
         width:
-          type: ["integer", "null"]
+          type: ["number", "null"]
+        thickness:
+          type: ["number", "null"]
         notes:
           type: ["string", "null"]
       required:
@@ -1230,9 +1232,11 @@ components:
         quantity:
           type: integer
         length:
-          type: ["integer", "null"]
+          type: ["number", "null"]
         width:
-          type: ["integer", "null"]
+          type: ["number", "null"]
+        thickness:
+          type: ["number", "null"]
         notes:
           type: ["string", "null"]
       required:
@@ -1250,9 +1254,11 @@ components:
         quantity:
           type: integer
         length:
-          type: ["integer", "null"]
+          type: ["number", "null"]
         width:
-          type: ["integer", "null"]
+          type: ["number", "null"]
+        thickness:
+          type: ["number", "null"]
         notes:
           type: ["string", "null"]
 

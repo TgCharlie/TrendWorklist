@@ -272,6 +272,8 @@ export interface WorklistItem {
   /** @nullable */
   width?: number | null;
   /** @nullable */
+  thickness?: number | null;
+  /** @nullable */
   notes?: string | null;
 }
 
@@ -338,6 +340,8 @@ export interface CreateWorklistItemBody {
   /** @nullable */
   width?: number | null;
   /** @nullable */
+  thickness?: number | null;
+  /** @nullable */
   notes?: string | null;
 }
 
@@ -349,6 +353,8 @@ export interface UpdateWorklistItemBody {
   length?: number | null;
   /** @nullable */
   width?: number | null;
+  /** @nullable */
+  thickness?: number | null;
   /** @nullable */
   notes?: string | null;
 }

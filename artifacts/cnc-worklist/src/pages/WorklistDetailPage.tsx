@@ -60,6 +60,7 @@ const EMPTY_ITEM = {
   quantity: 1,
   length: "" as string,
   width: "" as string,
+  thickness: "" as string,
   notes: "" as string,
   materialId: null as number | null,
 };
@@ -346,11 +347,6 @@ export default function WorklistDetailPage() {
         </Link>
 
         <div className="flex-1 min-w-0">
-          {/* Cutlist item description — shown prominently above the worklist number */}
-          {cutlistItem && (
-            <p className="text-base font-semibold text-zinc-800 mb-1 leading-snug">{cutlistItem}</p>
-          )}
-
           {/* Title row */}
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-2xl font-bold text-zinc-950 font-mono">{worklist.worklistNumber}</h1>
@@ -411,14 +407,11 @@ export default function WorklistDetailPage() {
           {/* Cutlist pills */}
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
             <span className="text-zinc-400 text-xs">Cutlists:</span>
-            {cutlistRefs.map((ref, i) => (
+            {cutlistRefs.map((ref) => (
               <span key={ref} className="inline-flex items-center gap-1.5">
                 <span className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-800 font-mono text-xs">
                   {ref}
                 </span>
-                {i === 0 && cutlistItem && (
-                  <span className="text-zinc-700 text-xs font-medium">{cutlistItem}</span>
-                )}
               </span>
             ))}
             {cutlistRefs.length === 0 && (

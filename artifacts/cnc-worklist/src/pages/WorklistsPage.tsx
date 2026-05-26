@@ -360,6 +360,7 @@ function MaterialsStep({
   isPending: boolean;
 }) {
   const [rowForm, setRowForm] = useState<DraftMaterialRow>(EMPTY_ROW());
+  const [selectKey, setSelectKey] = useState(0);
 
   const { data: materials = [] } = useListMaterials(undefined, {
     query: { queryKey: getListMaterialsQueryKey(), staleTime: 60_000 },
@@ -395,6 +396,7 @@ function MaterialsStep({
       materialRows: [...state.materialRows, { ...rowForm }],
     });
     setRowForm(EMPTY_ROW());
+    setSelectKey((k) => k + 1);
   }
 
   function removeRow(rowId: string) {
@@ -433,12 +435,13 @@ function MaterialsStep({
         {materials.length > 0 && (
           <div className="flex items-center gap-2">
             <Select
+              key={selectKey}
               onValueChange={(id) => {
                 const mat = materials.find((m) => String(m.id) === id);
                 if (mat) selectMaterial(mat);
               }}
             >
-              <SelectTrigger className="bg-white border-zinc-300 text-zinc-950 text-sm flex-1">
+              <SelectTrigger className="bg-white border-zinc-300 text-zinc-950 text-sm flex-1 h-10">
                 <SelectValue placeholder="Pick from materials library…" />
               </SelectTrigger>
               <SelectContent className="bg-white border-zinc-200">
@@ -450,22 +453,22 @@ function MaterialsStep({
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex items-center border border-zinc-300 rounded-md bg-white overflow-hidden flex-shrink-0">
-              <span className="px-3 text-sm text-zinc-900 min-w-[2.5rem] text-center select-none">
+            <div className="flex items-stretch border border-zinc-300 rounded-md bg-white overflow-hidden flex-shrink-0 h-10">
+              <span className="px-3 text-sm text-zinc-900 min-w-[2.5rem] text-center select-none flex items-center justify-center">
                 {rowForm.quantity}
               </span>
               <div className="flex flex-col border-l border-zinc-200">
                 <button
                   type="button"
                   onClick={() => setRowForm((f) => ({ ...f, quantity: f.quantity + 1 }))}
-                  className="px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200 text-base leading-none font-medium"
+                  className="flex-1 px-3 text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200 text-base leading-none font-medium flex items-center justify-center"
                 >
                   +
                 </button>
                 <button
                   type="button"
                   onClick={() => setRowForm((f) => ({ ...f, quantity: Math.max(1, f.quantity - 1) }))}
-                  className="px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200 text-base leading-none font-medium border-t border-zinc-200"
+                  className="flex-1 px-3 text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200 text-base leading-none font-medium border-t border-zinc-200 flex items-center justify-center"
                 >
                   −
                 </button>

@@ -1049,6 +1049,12 @@ components:
           type: string
         displayName:
           type: string
+        length:
+          type: ["number", "null"]
+        width:
+          type: ["number", "null"]
+        thickness:
+          type: ["number", "null"]
         notes:
           type: ["string", "null"]
         isFavourite:

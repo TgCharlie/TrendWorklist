@@ -48,6 +48,12 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const STATUS_OPTIONS: WorklistStatus[] = ["draft", "active", "complete"];
 
+function parseDimsFromDescription(desc: string): { length: string; width: string; thickness: string } | null {
+  const m = desc.trim().match(/^(\d+(?:\.\d+)?)\s*[×xX]\s*(\d+(?:\.\d+)?)\s*[×xX]\s*(\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  return { length: m[1], width: m[2], thickness: m[3] };
+}
+
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-zinc-100 text-zinc-700 border border-zinc-200",
   active: "bg-blue-50 text-blue-700 border border-blue-200",
@@ -286,14 +292,15 @@ export default function WorklistDetailPage() {
   function handleMaterialSelect(materialId: string) {
     const mat = materials.find((m) => String(m.id) === materialId);
     if (mat) {
+      const parsed = parseDimsFromDescription(mat.displayName ?? "");
       setItemForm((f) => ({
         ...f,
         materialId: mat.id,
         pcode: mat.pcode,
         displayName: mat.displayName,
-        length: mat.length != null ? String(mat.length) : f.length,
-        width: mat.width != null ? String(mat.width) : f.width,
-        thickness: mat.thickness != null ? String(mat.thickness) : f.thickness,
+        length: mat.length != null ? String(mat.length) : (parsed?.length ?? f.length),
+        width: mat.width != null ? String(mat.width) : (parsed?.width ?? f.width),
+        thickness: mat.thickness != null ? String(mat.thickness) : (parsed?.thickness ?? f.thickness),
       }));
       setStockSearch(mat.pcode);
     }

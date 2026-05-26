@@ -185,6 +185,12 @@ export interface Material {
   pcode: string;
   displayName: string;
   /** @nullable */
+  length?: number | null;
+  /** @nullable */
+  width?: number | null;
+  /** @nullable */
+  thickness?: number | null;
+  /** @nullable */
   notes?: string | null;
   isFavourite?: boolean;
   createdAt: string;

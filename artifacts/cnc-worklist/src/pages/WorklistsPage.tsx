@@ -128,47 +128,65 @@ function CutlistStep({
   const [lookupError, setLookupError] = useState<string | null>(null);
 
   async function addCutlist() {
-    const id = state.cutlistInput.trim();
-    if (!id) return;
-    if (state.cutlistEntries.some((e) => e.cutlistId === id)) {
-      setState({ ...state, cutlistInput: "" });
-      return;
-    }
+    const raw = state.cutlistInput.trim();
+    if (!raw) return;
+
+    const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    if (ids.length === 0) return;
+
     setIsLooking(true);
     setLookupError(null);
-    try {
-      const cutlist = await getCutlist(id);
-      const projectId = (cutlist.projectId as string) ?? "";
-      let projectName = (cutlist.projectName as string) ?? "";
-      if (!projectName && projectId) {
-        try {
-          const project = await getProject(projectId);
-          projectName = (project.projectName as string) ?? "";
-        } catch {
-          // ignore — project name is best-effort
+
+    const errors: string[] = [];
+    let entries = [...state.cutlistEntries];
+    let resolvedProjectId = state.resolvedProjectId;
+    let resolvedProjectName = state.resolvedProjectName;
+
+    for (const id of ids) {
+      if (entries.some((e) => e.cutlistId === id)) continue;
+      try {
+        const cutlist = await getCutlist(id);
+        const projectId = (cutlist.projectId as string) ?? "";
+        let projectName = (cutlist.projectName as string) ?? "";
+        if (!projectName && projectId) {
+          try {
+            const project = await getProject(projectId);
+            projectName = (project.projectName as string) ?? "";
+          } catch {
+            // ignore — project name is best-effort
+          }
         }
+        const entry: CutlistEntry = {
+          cutlistId: String(cutlist.cutlistId ?? cutlist.id ?? id),
+          item: (cutlist.item as string) ?? "",
+          memo: (cutlist.memo as string) ?? "",
+          createdBy: (cutlist.createdBy as string) ?? "",
+          projectId,
+          projectName,
+        };
+        entries = [...entries, entry];
+        resolvedProjectId = resolvedProjectId || entry.projectId;
+        resolvedProjectName = resolvedProjectName || entry.projectName;
+      } catch {
+        errors.push(id);
       }
-      const entry: CutlistEntry = {
-        cutlistId: String(cutlist.cutlistId ?? cutlist.id ?? id),
-        item: (cutlist.item as string) ?? "",
-        memo: (cutlist.memo as string) ?? "",
-        createdBy: (cutlist.createdBy as string) ?? "",
-        projectId,
-        projectName,
-      };
-      const entries = [...state.cutlistEntries, entry];
-      setState({
-        ...state,
-        cutlistInput: "",
-        cutlistEntries: entries,
-        resolvedProjectId: state.resolvedProjectId || entry.projectId,
-        resolvedProjectName: state.resolvedProjectName || entry.projectName,
-      });
-    } catch {
-      setLookupError(`Cutlist "${id}" not found in FileMaker.`);
-    } finally {
-      setIsLooking(false);
     }
+
+    setState({
+      ...state,
+      cutlistInput: "",
+      cutlistEntries: entries,
+      resolvedProjectId,
+      resolvedProjectName,
+    });
+
+    if (errors.length > 0) {
+      setLookupError(
+        `${errors.length === 1 ? `Cutlist "${errors[0]}"` : `Cutlists ${errors.map((e) => `"${e}"`).join(", ")}`} not found in FileMaker.`
+      );
+    }
+
+    setIsLooking(false);
   }
 
   function removeCutlist(cutlistId: string) {
@@ -186,7 +204,7 @@ function CutlistStep({
       <div className="space-y-1.5">
         <div className="flex items-baseline justify-between">
           <Label className="text-zinc-700">Cutlist Numbers</Label>
-          <span className="text-zinc-400 text-xs">Add one at a time — you can add multiple</span>
+          <span className="text-zinc-400 text-xs">Separate multiple numbers with commas</span>
         </div>
         <div className="flex gap-2">
           <Input
@@ -196,7 +214,7 @@ function CutlistStep({
               setLookupError(null);
             }}
             onKeyDown={(e) => { if (e.key === "Enter") addCutlist(); }}
-            placeholder="e.g. 298282"
+            placeholder="e.g. 298337,298333,298327"
             autoFocus
             className="bg-white border-zinc-300 text-zinc-950 placeholder:text-zinc-400"
           />

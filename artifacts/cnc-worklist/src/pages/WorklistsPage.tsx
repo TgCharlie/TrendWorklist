@@ -545,6 +545,18 @@ function MaterialsStep({
                 </button>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={addRow}
+              disabled={!rowForm.pcode.trim()}
+              className={`h-10 px-4 rounded-md text-sm font-medium flex-shrink-0 transition-colors ${
+                rowForm.pcode.trim()
+                  ? "bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white"
+                  : "bg-zinc-100 text-zinc-400 cursor-not-allowed"
+              }`}
+            >
+              Add
+            </button>
           </div>
         )}
 
@@ -620,18 +632,6 @@ function MaterialsStep({
         )}
 
 
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={addRow}
-          disabled={!rowForm.pcode.trim()}
-          className="w-full border-zinc-300 text-zinc-700 hover:bg-zinc-50"
-        >
-          <svg className="w-3.5 h-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Row
-        </Button>
       </div>
 
       {/* Added rows */}

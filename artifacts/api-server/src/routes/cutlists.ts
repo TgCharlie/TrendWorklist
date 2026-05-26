@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../lib/auth-middleware";
 import { findCutlistsByProject, findCutlistById } from "../lib/filemaker";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.get("/:cutlistId", requireAuth, async (req, res): Promise<void> => {
       res.status(404).json({ error: "Cutlist not found" });
       return;
     }
+    logger.info({ cutlistKeys: Object.keys(cutlist), projectName: cutlist["projectName"], ProjectName: cutlist["ProjectName"] }, "cutlist debug fields");
     res.json(cutlist);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
